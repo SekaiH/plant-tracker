@@ -1,0 +1,1947 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🌱 植況簿 · 溫馨農場手札 - 植物收藏與價值管理</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Noto+Sans+TC:wght@400;500;700;900&family=VT323&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --farm-bg: #f5eedc;
+      --farm-wood: #53361e;
+      --farm-paper: #fffcf2;
+    }
+
+    [v-cloak] { display: none; }
+
+    body {
+      background-color: var(--farm-bg);
+      background-image: 
+        radial-gradient(#dccbb0 1.2px, transparent 1.2px),
+        linear-gradient(to bottom, #f7f2e4, #eee4ce);
+      background-size: 16px 16px, 100% 100%;
+      background-attachment: fixed;
+      font-family: 'Noto Sans TC', sans-serif;
+      color: #3e2723;
+    }
+
+    /* 像素風格僅保留給標題、按鈕與重要數據 */
+    .font-pixel {
+      font-family: 'DotGothic16', 'VT323', monospace;
+    }
+
+    /* 像素原木實體按鈕 */
+    .btn-wood {
+      background: linear-gradient(180deg, #9a633a 0%, #6f4222 100%);
+      border: 2px solid #3d2312;
+      box-shadow: 0 4px 0 #3d2312, 0 6px 6px rgba(0,0,0,0.15);
+      color: #fff9ed;
+      transition: all 0.08s steps(2);
+    }
+    .btn-wood:hover {
+      background: linear-gradient(180deg, #a76d42 0%, #7d4b27 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 5px 0 #3d2312, 0 7px 8px rgba(0,0,0,0.2);
+    }
+    .btn-wood:active {
+      transform: translateY(4px);
+      box-shadow: 0 0 0 #3d2312, 0 2px 2px rgba(0,0,0,0.2);
+    }
+
+    .btn-leaf {
+      background: linear-gradient(180deg, #588157 0%, #3a5a40 100%);
+      border: 2px solid #283618;
+      box-shadow: 0 4px 0 #283618, 0 6px 6px rgba(40,54,24,0.2);
+      color: #ffffff;
+      transition: all 0.08s steps(2);
+    }
+    .btn-leaf:hover {
+      background: linear-gradient(180deg, #659264 0%, #43664a 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 5px 0 #283618;
+    }
+    .btn-leaf:active {
+      transform: translateY(4px);
+      box-shadow: 0 0 0 #283618;
+    }
+
+    /* 像素告示板卡片 */
+    .pixel-card {
+      background: var(--farm-paper);
+      border: 3px solid #5a3821;
+      border-radius: 12px;
+      box-shadow: 0 6px 0 #d3bc9e, 0 10px 15px rgba(90,56,33,0.08);
+      position: relative;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .pixel-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 0 #c2a785, 0 14px 20px rgba(90,56,33,0.12);
+    }
+
+    /* 復古羊皮紙告示欄 */
+    .parchment-panel {
+      background: #fdfbf5;
+      border: 3px solid #6b4423;
+      border-radius: 14px;
+      box-shadow: inset 0 0 0 3px #dfcca9, 0 6px 0 #cbaf8b;
+    }
+
+    /* 狀態標籤 */
+    .status-badge {
+      border-width: 1.5px;
+      box-shadow: 0 2px 0 rgba(0,0,0,0.08);
+    }
+    .status-badge-seedling  { background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; }
+    .status-badge-growing   { background: #dcfce7; color: #15803d; border-color: #86efac; }
+    .status-badge-mature    { background: #fef9c3; color: #a16207; border-color: #fde047; }
+    .status-badge-sold      { background: #ffedd5; color: #c2410c; border-color: #fdba74; }
+    .status-badge-gifted    { background: #f3e8ff; color: #7e22ce; border-color: #d8b4fe; }
+    .status-badge-dead      { background: #f1f5f9; color: #64748b; border-color: #cbd5e1; }
+    
+    .status-badge-unhealthy {
+      background: #fee2e2;
+      color: #b91c1c;
+      border-color: #fca5a5;
+      animation: pixel-pulse 1.4s infinite steps(2);
+    }
+
+    @keyframes pixel-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.96); }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen antialiased selection:bg-amber-700 selection:text-white text-sm">
+  <div id="app" v-cloak class="flex flex-col min-h-screen">
+
+    <!-- ==================== 連線畫面 ==================== -->
+    <div v-if="!auth.token" class="flex-1 flex items-center justify-center p-4">
+      <div class="parchment-panel max-w-sm w-full p-8 text-center relative overflow-hidden">
+        <div class="w-16 h-16 rounded-2xl bg-[#53361e] border-2 border-[#3d2312] text-amber-200 flex items-center justify-center mx-auto shadow-md mb-4">
+          <i class="ph-bold ph-plant text-3xl"></i>
+        </div>
+        <h1 class="text-2xl font-bold tracking-wide text-[#432818] font-pixel">溫室莊園手札</h1>
+        <p class="text-xs text-[#7f5539] mt-1 mb-6 font-medium">🌿 正在翻閱莊園檔案簿...</p>
+
+        <div v-if="auth.loading" class="text-emerald-700 text-sm font-medium flex items-center justify-center gap-2 py-4">
+          <i class="ph-bold ph-spinner-gap animate-spin text-lg"></i> 開啟溫室大門中...
+        </div>
+
+        <div v-else-if="auth.error" class="space-y-4">
+          <div class="text-xs text-rose-800 bg-rose-100 border-2 border-rose-300 rounded-xl p-3 text-left">
+            <p class="font-bold flex items-center gap-1 mb-1">
+              <i class="ph-bold ph-warning-circle"></i> 連線驗證失敗
+            </p>
+            <p class="font-mono text-[11px]">{{ auth.error }}</p>
+          </div>
+          <button @click="autoLogin(); playSfx('click')" class="w-full py-2.5 btn-leaf font-pixel font-bold text-sm rounded-xl">
+            重新連線莊園
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 主手札介面 ==================== -->
+    <template v-else>
+
+      <!-- Toast 告示 -->
+      <div v-if="toast.message" class="fixed top-5 right-5 z-[100] max-w-sm">
+        <div :class="toast.type === 'error' ? 'bg-[#ffeedd] border-rose-700 text-rose-900' : 'bg-[#f4fce8] border-emerald-800 text-emerald-950'"
+             class="text-xs px-4 py-3 rounded-xl border-2 shadow-xl flex items-start gap-2.5 font-medium">
+          <i :class="toast.type === 'error' ? 'ph-fill ph-bell-ringing' : 'ph-fill ph-check-circle'" class="text-base mt-0.5 flex-shrink-0"></i>
+          <span class="flex-1 leading-relaxed">{{ toast.message }}</span>
+          <button @click="toast.message = ''" class="text-stone-500 hover:text-black"><i class="ph-bold ph-x"></i></button>
+        </div>
+      </div>
+
+      <!-- 頂部木質導航列 -->
+      <header class="bg-[#5c3a21] border-b-4 border-[#3a2211] sticky top-0 z-30 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center justify-between gap-3">
+          
+          <!-- Logo 與持有數量 -->
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-[#8c5832] border-2 border-[#eed5b7] text-amber-100 flex items-center justify-center shadow-inner">
+              <i class="ph-bold ph-plant text-2xl"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xl font-bold tracking-wider text-[#faedcd] font-pixel">植況簿</span>
+                <span class="text-[11px] font-medium bg-[#386641] text-emerald-100 border border-emerald-400 px-2 py-0.5 rounded-full">
+                  在籍 {{ dashboard.aliveCount || 0 }} 盆
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 動作按鈕群 -->
+          <div class="flex items-center flex-wrap gap-2">
+            <button @click="openModal('addPlant'); playSfx('pop')" class="btn-wood px-3.5 py-1.5 text-xs font-pixel font-bold rounded-xl flex items-center gap-1.5">
+              <i class="ph-bold ph-plus-circle text-amber-300"></i> 新增植物
+            </button>
+            <button @click="openModal('purchase'); playSfx('pop')" class="btn-leaf px-3.5 py-1.5 text-xs font-pixel font-bold rounded-xl flex items-center gap-1.5">
+              <i class="ph-bold ph-shopping-bag"></i> 批次購買
+            </button>
+
+            <div class="h-5 w-0.5 bg-[#432818] mx-1 hidden sm:block"></div>
+
+            <button @click="viewMode = (viewMode === 'cards' ? 'table' : 'cards'); playSfx('click')" 
+                    class="px-3 py-1.5 rounded-xl bg-[#7c4f2c] hover:bg-[#8c5a34] text-amber-100 border-2 border-[#3d2312] text-xs font-pixel font-bold flex items-center gap-1 transition-colors">
+              <i :class="viewMode === 'cards' ? 'ph-bold ph-list-dashes' : 'ph-bold ph-squares-four'"></i>
+              <span>{{ viewMode === 'cards' ? '清單' : '圖鑑' }}</span>
+            </button>
+
+            <button @click="toggleSound" 
+                    :class="soundEnabled ? 'text-amber-200 border-[#eed5b7] bg-[#7c4f2c]' : 'text-stone-400 border-[#3d2312] bg-[#432818]'"
+                    class="p-1.5 rounded-xl border-2 text-sm flex items-center transition-colors" :title="soundEnabled ? '音效已開啟' : '靜音模式'">
+              <i :class="soundEnabled ? 'ph-fill ph-speaker-high' : 'ph-fill ph-speaker-slash'"></i>
+            </button>
+
+            <button @click="exportData(); playSfx('coin')" title="匯出農場手札" 
+                    class="px-2.5 py-1.5 rounded-xl bg-[#7c4f2c] hover:bg-[#8c5a34] text-amber-100 border-2 border-[#3d2312] text-xs font-pixel font-bold flex items-center gap-1">
+              <i class="ph-bold ph-file-arrow-down text-sm"></i>
+              <span class="hidden md:inline">匯出</span>
+            </button>
+
+            <a href="compost.html" title="堆肥管理"
+               class="px-2.5 py-1.5 rounded-xl bg-[#7c4f2c] hover:bg-[#8c5a34] text-amber-100 border-2 border-[#3d2312] text-xs font-pixel font-bold flex items-center gap-1">
+              <i class="ph-bold ph-recycle text-sm"></i>
+              <span class="hidden md:inline">堆肥</span>
+            </a>
+
+            <a href="equipment.html" title="工具設備"
+               class="px-2.5 py-1.5 rounded-xl bg-[#7c4f2c] hover:bg-[#8c5a34] text-amber-100 border-2 border-[#3d2312] text-xs font-pixel font-bold flex items-center gap-1">
+              <i class="ph-bold ph-wrench text-sm"></i>
+              <span class="hidden md:inline">工具</span>
+            </a>
+          </div>
+
+        </div>
+      </header>
+
+      <!-- 主要工作區 -->
+      <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-5">
+
+        <!-- ==================== 1. 新手操作指引（狀態寫入 localStorage） ==================== -->
+        <section class="parchment-panel p-4 sm:p-5 relative transition-all">
+          <div class="flex items-center justify-between border-b-2 border-[#dfcca9] pb-2 mb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">🏡</span>
+              <span class="font-pixel font-bold text-sm sm:text-base text-[#5c3a21]">PLANT ADVENTURE ｜ 溫室手札操作指引</span>
+            </div>
+            <!-- 調用已寫入 localStorage 的 toggleGuide -->
+            <button @click="toggleGuide" class="text-xs text-[#8c5832] font-medium hover:underline flex items-center gap-1">
+              <span>{{ guideCollapsed ? '展開指南' : '收合指南' }}</span>
+              <i :class="guideCollapsed ? 'ph-bold ph-caret-down' : 'ph-bold ph-caret-up'"></i>
+            </button>
+          </div>
+
+          <div v-show="!guideCollapsed" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div @click="openModal('addPlant'); playSfx('pop')" class="bg-white/80 p-3 rounded-xl border-2 border-[#d3bc9e] hover:border-[#8c5832] cursor-pointer transition-colors group">
+              <div class="font-pixel font-bold text-[#386641] text-sm flex items-center justify-between">
+                <span>① 播種買苗</span>
+                <i class="ph-bold ph-arrow-right opacity-0 group-hover:opacity-100 transition-opacity"></i>
+              </div>
+              <!-- 說明文字改回清晰易讀的內文字體 -->
+              <p class="text-[#7f5539] text-xs mt-1 leading-normal font-normal">點選登記購買或新增植物，建立品種檔案。</p>
+            </div>
+            <div @click="propForm.parentPlantId = ''; openModal('propagation'); playSfx('pop')" class="bg-white/80 p-3 rounded-xl border-2 border-[#d3bc9e] hover:border-[#8c5832] cursor-pointer transition-colors group">
+              <div class="font-pixel font-bold text-[#bc4749] text-sm flex items-center justify-between">
+                <span>② 照料繁殖</span>
+                <i class="ph-bold ph-arrow-right opacity-0 group-hover:opacity-100 transition-opacity"></i>
+              </div>
+              <p class="text-[#7f5539] text-xs mt-1 leading-normal font-normal">使用分株或扦插繁衍子株，追蹤親本系譜。</p>
+            </div>
+            <div class="bg-white/80 p-3 rounded-xl border-2 border-[#d3bc9e]">
+              <div class="font-pixel font-bold text-[#b07d62] text-sm">③ 記錄寫真</div>
+              <p class="text-[#7f5539] text-xs mt-1 leading-normal font-normal">上傳植物成長照片，作為圖鑑封面標本。</p>
+            </div>
+            <div class="bg-white/80 p-3 rounded-xl border-2 border-[#d3bc9e]">
+              <div class="font-pixel font-bold text-[#c2410c] text-sm">④ 估值收穫</div>
+              <p class="text-[#7f5539] text-xs mt-1 leading-normal font-normal">隨時校準當前市價，出售結算農場收穫。</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== 2. 農場看板：數值大字用像素、說明文字用黑體 ==================== -->
+        <section class="grid grid-cols-2 md:grid-cols-5 gap-3">
+          
+          <div class="pixel-card p-3.5 flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl bg-emerald-100 border-2 border-emerald-300 text-emerald-800 flex items-center justify-center text-2xl flex-shrink-0">
+              🌱
+            </div>
+            <div class="overflow-hidden">
+              <div class="text-xs font-bold text-[#7f5539]">溫室總盆數</div>
+              <div class="text-2xl font-black font-pixel text-[#3a2211]">{{ dashboard.totalPlants }} <span class="text-xs font-normal text-stone-500 font-sans">盆</span></div>
+              <div class="text-[11px] text-stone-500 truncate font-normal">累積建檔個體</div>
+            </div>
+          </div>
+
+          <div class="pixel-card p-3.5 flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl bg-green-100 border-2 border-green-300 text-green-800 flex items-center justify-center text-2xl flex-shrink-0">
+              🌿
+            </div>
+            <div class="overflow-hidden">
+              <div class="text-xs font-bold text-[#2d6a4f]">在籍健康</div>
+              <div class="text-2xl font-black font-pixel text-[#2d6a4f]">{{ dashboard.aliveCount }} <span class="text-xs font-normal text-stone-500 font-sans">盆</span></div>
+              <div class="text-[11px] text-stone-500 truncate font-normal">幼苗/成長/成株</div>
+            </div>
+          </div>
+
+          <div class="pixel-card p-3.5 flex items-center gap-3 bg-gradient-to-br from-amber-50 to-[#fff8e7]">
+            <div class="w-11 h-11 rounded-xl bg-amber-100 border-2 border-amber-300 text-amber-700 flex items-center justify-center text-2xl flex-shrink-0">
+              💰
+            </div>
+            <div class="overflow-hidden">
+              <div class="text-xs font-bold text-amber-800">持有總市值</div>
+              <div class="text-2xl font-black font-pixel text-[#b45309]">${{ (dashboard.totalMarketValue || 0).toLocaleString() }}</div>
+              <div class="text-[11px] text-amber-700/80 truncate font-normal">活體在庫總資產</div>
+            </div>
+          </div>
+
+          <div class="pixel-card p-3.5 flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl bg-sky-100 border-2 border-sky-300 text-sky-800 flex items-center justify-center text-2xl flex-shrink-0">
+              🪙
+            </div>
+            <div class="overflow-hidden">
+              <div class="text-xs font-bold text-[#7f5539]">種苗總成本</div>
+              <div class="text-2xl font-black font-pixel text-slate-800">${{ (dashboard.holdingCost || 0).toLocaleString() }}</div>
+              <div class="text-[11px] truncate font-medium" :class="(dashboard.unrealizedGain || 0) >= 0 ? 'text-emerald-700' : 'text-blue-700'">
+                未實現 {{ dashboard.unrealizedGain >= 0 ? '+' : '' }}${{ (dashboard.unrealizedGain || 0).toLocaleString() }}
+              </div>
+            </div>
+          </div>
+
+          <div class="pixel-card p-3.5 flex items-center gap-3 col-span-2 md:col-span-1">
+            <div class="w-11 h-11 rounded-xl bg-orange-100 border-2 border-orange-300 text-orange-800 flex items-center justify-center text-2xl flex-shrink-0">
+              📦
+            </div>
+            <div class="overflow-hidden">
+              <div class="text-xs font-bold text-[#7f5539]">已出貨收益</div>
+              <div class="text-2xl font-black font-pixel" :class="(dashboard.totalRealizedProfit || 0) >= 0 ? 'text-rose-700' : 'text-blue-700'">
+                {{ (dashboard.totalRealizedProfit || 0) >= 0 ? '+' : '' }}${{ (dashboard.totalRealizedProfit || 0).toLocaleString() }}
+              </div>
+              <div class="text-[11px] text-stone-500 truncate font-normal">結算出售 {{ dashboard.soldCount || 0 }} 盆</div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- 種植淨損益(可點開展開明細:買入花費/出售收益/持有成本/未實現獲利) -->
+        <section class="pixel-card overflow-hidden">
+          <button @click="showFinanceBreakdown = !showFinanceBreakdown; playSfx('click')"
+                  class="w-full p-3.5 flex items-center gap-3 text-left hover:bg-[#f5eedc]/60 transition-colors">
+            <div class="w-11 h-11 rounded-xl border-2 flex items-center justify-center text-2xl flex-shrink-0"
+                 :class="(dashboard.netProfitLoss || 0) >= 0 ? 'bg-emerald-100 border-emerald-300' : 'bg-rose-100 border-rose-300'">
+              {{ (dashboard.netProfitLoss || 0) >= 0 ? '📈' : '📉' }}
+            </div>
+            <div class="flex-1 overflow-hidden">
+              <div class="text-xs font-bold text-[#5c3a21]">種植淨損益(全部歷程總結算)</div>
+              <div class="text-2xl font-black font-pixel" :class="(dashboard.netProfitLoss || 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'">
+                {{ (dashboard.netProfitLoss || 0) >= 0 ? '+' : '' }}${{ (dashboard.netProfitLoss || 0).toLocaleString() }}
+              </div>
+              <div class="text-[11px] text-stone-500 truncate font-normal">點擊查看明細組成</div>
+            </div>
+            <i :class="showFinanceBreakdown ? 'ph-bold ph-caret-up' : 'ph-bold ph-caret-down'" class="text-[#7f5539] text-lg flex-shrink-0"></i>
+          </button>
+
+          <div v-if="showFinanceBreakdown" class="border-t-2 border-[#dfcca9] p-4 bg-[#fbf7ee] grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div class="bg-white rounded-xl border border-[#dfcca9] p-3">
+              <div class="text-stone-500 font-medium mb-0.5">🛒 買植物總共花了多少錢</div>
+              <div class="text-lg font-black font-pixel text-slate-800">${{ (dashboard.financeBreakdown?.totalSpentEver || 0).toLocaleString() }}</div>
+              <div class="text-[10px] text-stone-400 mt-0.5">歷史所有植物購入成本加總(不分現在狀態)</div>
+            </div>
+            <div class="bg-white rounded-xl border border-[#dfcca9] p-3">
+              <div class="text-stone-500 font-medium mb-0.5">💵 賣植物總共收入多少錢</div>
+              <div class="text-lg font-black font-pixel text-emerald-700">
+                +${{ (dashboard.financeBreakdown?.totalSaleRevenue || 0).toLocaleString() }}
+              </div>
+              <div class="text-[10px] text-stone-400 mt-0.5">
+                已實現獲利(售價-成本)+${{ (dashboard.financeBreakdown?.totalRealizedProfit || 0).toLocaleString() }},供對照參考
+              </div>
+            </div>
+            <div class="bg-white rounded-xl border border-[#dfcca9] p-3">
+              <div class="text-stone-500 font-medium mb-0.5">🌱 現持有植物花了多少錢<span class="text-amber-600">(尚未變現)</span></div>
+              <div class="text-lg font-black font-pixel text-slate-800">${{ (dashboard.financeBreakdown?.holdingCost || 0).toLocaleString() }}</div>
+              <div class="text-[10px] text-stone-400 mt-0.5">已包含在「買入總花費」裡,賣掉之前這筆錢就是負的,不會顯示在淨損益之外</div>
+            </div>
+            <div class="bg-white rounded-xl border border-[#dfcca9] p-3">
+              <div class="text-stone-500 font-medium mb-0.5">💎 現持有植物若賣掉可賺多少<span class="text-amber-600">(紙上參考)</span></div>
+              <div class="text-lg font-black font-pixel" :class="(dashboard.financeBreakdown?.unrealizedGain || 0) >= 0 ? 'text-emerald-700' : 'text-blue-700'">
+                {{ (dashboard.financeBreakdown?.unrealizedGain || 0) >= 0 ? '+' : '' }}${{ (dashboard.financeBreakdown?.unrealizedGain || 0).toLocaleString() }}
+              </div>
+              <div class="text-[10px] text-stone-400 mt-0.5">依目前市價估值,僅供參考,不計入上方淨損益(要真的賣掉才算數)</div>
+            </div>
+            <p class="sm:col-span-2 text-[10px] text-stone-400 leading-relaxed pt-1 border-t border-[#eee4ce]">
+              計算方式(純現金流角度):淨損益 = 賣出總收入 - 買入總花費。買植物的當下錢就已經
+              花出去了,在真正賣掉、錢收回來之前,這筆花費就是負的,不會用「目前市價」去美化
+              這個數字。例如:買一株 $500 的植物,淨損益先顯示 -$500;之後以 $700 賣出,
+              淨損益才變成 +$200。死亡/送人/已採收的植株同理,購入成本已經花出去卻沒有變現,
+              永遠不會被扣抵。
+            </p>
+          </div>
+        </section>
+
+
+        <!-- ==================== 3. 搜尋與分區篩選欄 ==================== -->
+        <section class="parchment-panel p-3 flex flex-col md:flex-row gap-2.5 items-center justify-between">
+          <div class="relative w-full md:w-80">
+            <i class="ph-bold ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400"></i>
+            <input v-model.trim="filters.search" @input="debouncedReload"
+                   type="text" placeholder="找植物：名稱、品種、編號、分類、備註(賣家/規格等)..."
+                   class="w-full pl-9 pr-4 py-2 bg-white border-2 border-[#dfcca9] rounded-xl text-xs text-[#3a2211] placeholder-stone-400 focus:outline-none focus:border-[#8c5832] transition-colors font-sans" />
+          </div>
+          <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            <select v-model="filters.status" @change="reloadPlants(); playSfx('click')" class="px-3 py-2 bg-white border-2 border-[#dfcca9] rounded-xl text-xs text-[#5c3a21] font-medium focus:outline-none">
+              <option value="">✦ 所有生命狀態</option>
+              <option v-for="st in STATUS_LIST" :key="st" :value="st">{{ st }}</option>
+            </select>
+            <select :value="filters.location_id" @change="handleLocationSelectChange($event, filters, 'location_id', reloadPlants)" class="px-3 py-2 bg-white border-2 border-[#dfcca9] rounded-xl text-xs text-[#5c3a21] font-medium focus:outline-none">
+              <option value="">✦ 所有溫室分區</option>
+              <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }} ({{ loc.plantCount }})</option>
+              <option value="__new__">+ 新增分區...</option>
+            </select>
+          </div>
+        </section>
+
+        <div v-if="loading.plants" class="text-center py-20">
+          <i class="ph-bold ph-plant animate-bounce text-4xl text-[#588157]"></i>
+          <p class="text-[#7f5539] text-xs mt-2 font-medium">溫室翻土巡視中...</p>
+        </div>
+
+        <!-- ==================== 4. 視圖 1: 卡牌模式(種植中／已採收／已離庫三區,不混在一起) ==================== -->
+        <section v-else-if="viewMode === 'cards'" class="space-y-5">
+
+          <h2 class="font-pixel font-bold text-sm text-[#386641] flex items-center gap-1.5">
+            <i class="ph-bold ph-plant"></i> 種植中({{ growingPlants.length }})
+          </h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <plant-card v-for="plant in growingPlants" :key="plant.id" :plant="plant"
+                        :is-holding="isHolding" :status-slug="statusSlug" :status-icon="statusIcon"
+                        :cover-url="plantCoverUrl" :terminal-label="terminalLabel" :format-last-watered="formatLastWatered"
+                        @view-detail="viewDetail" @edit="openEditModal" @move="openMoveModal" @status="openStatusModal"
+                        @price="openPriceModal" @delete="deletePlant" @water-now="waterNow" @propagate="openPropWithParent" />
+          </div>
+          <div v-if="growingPlants.length === 0" class="text-center py-10 parchment-panel">
+            <p class="text-[#7f5539] text-xs font-medium">目前沒有種植中的植物</p>
+          </div>
+
+          <h2 class="font-pixel font-bold text-sm text-amber-800 flex items-center gap-1.5 pt-2">
+            <i class="ph-bold ph-basket"></i> 已採收({{ harvestedPlants.length }})
+          </h2>
+          <div v-if="harvestedPlants.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <plant-card v-for="plant in harvestedPlants" :key="plant.id" :plant="plant"
+                        :is-holding="isHolding" :status-slug="statusSlug" :status-icon="statusIcon"
+                        :cover-url="plantCoverUrl" :terminal-label="terminalLabel" :format-last-watered="formatLastWatered"
+                        @view-detail="viewDetail" @edit="openEditModal" @move="openMoveModal" @status="openStatusModal"
+                        @price="openPriceModal" @delete="deletePlant" @water-now="waterNow" @propagate="openPropWithParent" />
+          </div>
+          <div v-else class="text-center py-6 parchment-panel">
+            <p class="text-[#7f5539] text-xs font-medium">尚無已採收的植物</p>
+          </div>
+
+          <h2 class="font-pixel font-bold text-sm text-stone-500 flex items-center gap-1.5 pt-2">
+            <i class="ph-bold ph-archive"></i> 已離庫 · 死亡/出售/送人({{ terminalPlants.length }})
+          </h2>
+          <div v-if="terminalPlants.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <plant-card v-for="plant in terminalPlants" :key="plant.id" :plant="plant"
+                        :is-holding="isHolding" :status-slug="statusSlug" :status-icon="statusIcon"
+                        :cover-url="plantCoverUrl" :terminal-label="terminalLabel" :format-last-watered="formatLastWatered"
+                        @view-detail="viewDetail" @edit="openEditModal" @move="openMoveModal" @status="openStatusModal"
+                        @price="openPriceModal" @delete="deletePlant" @water-now="waterNow" @propagate="openPropWithParent" />
+          </div>
+          <div v-else class="text-center py-6 parchment-panel">
+            <p class="text-[#7f5539] text-xs font-medium">尚無已離庫的植物</p>
+          </div>
+
+          <div v-if="plants.length === 0" class="text-center py-16 parchment-panel">
+            <p class="text-3xl mb-1">🧺</p>
+            <p class="text-[#7f5539] text-xs font-medium">這片苗床上目前沒有符合條件的植物</p>
+          </div>
+        </section>
+
+        <!-- ==================== 5. 視圖 2: 清單表格模式(三區分隔) ==================== -->
+        <section v-else class="parchment-panel overflow-hidden shadow-md">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-[#ecdcc5] border-b-2 border-[#dfcca9] text-[#5c3a21] font-bold">
+                <tr>
+                  <th class="p-3 font-pixel">編號</th>
+                  <th class="p-3">植物名稱</th>
+                  <th class="p-3">品種 / 分類</th>
+                  <th class="p-3">生命狀態</th>
+                  <th class="p-3">區域位置</th>
+                  <th class="p-3 text-right">購入成本</th>
+                  <th class="p-3 text-right">當前估值</th>
+                  <th class="p-3 text-center">操作</th>
+                </tr>
+              </thead>
+              <tbody v-for="group in [
+                       { label: '🌱 種植中', list: growingPlants },
+                       { label: '🧺 已採收', list: harvestedPlants },
+                       { label: '📦 已離庫(死亡/出售/送人)', list: terminalPlants },
+                     ]" :key="group.label" class="divide-y divide-[#eee4ce] text-stone-800 font-normal">
+                <tr>
+                  <td colspan="8" class="px-3 py-1.5 bg-[#f5eedc] font-pixel font-bold text-[#5c3a21] text-[11px]">
+                    {{ group.label }}({{ group.list.length }})
+                  </td>
+                </tr>
+                <tr v-if="group.list.length === 0">
+                  <td colspan="8" class="p-3 text-center text-stone-400 italic">無資料</td>
+                </tr>
+                <tr v-for="plant in group.list" :key="plant.id" class="hover:bg-[#fbf7ee] transition-colors">
+                  <td class="p-3 font-mono font-bold text-[#386641]">{{ plant.code }}</td>
+                  <td class="p-3 font-bold text-[#3a2211] flex items-center gap-2">
+                    <span>{{ plant.name }}</span>
+                    <span v-if="plant.speciesType === 'HYBRID'" class="text-[10px] bg-amber-200 text-amber-900 border border-amber-400 px-1 rounded font-pixel">雜交</span>
+                  </td>
+                  <td class="p-3 text-stone-600">{{ plant.variety || '-' }} / {{ plant.category || '未分類' }}</td>
+                  <td class="p-3">
+                    <span :class="'status-badge-' + statusSlug(plant.status)" class="status-badge px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 font-pixel">
+                      <i :class="statusIcon(plant.status)"></i> {{ plant.status }}
+                    </span>
+                  </td>
+                  <td class="p-3 text-stone-600">{{ plant.location ? plant.location.name : '未分區' }}</td>
+                  <td class="p-3 text-right font-pixel text-sm">${{ (plant.purchasePrice || 0).toLocaleString() }}</td>
+                  <td class="p-3 text-right font-pixel text-sm font-bold" :class="isHolding(plant.status) ? 'text-[#b45309]' : 'text-stone-400 line-through'">
+                    ${{ (plant.currentPrice || 0).toLocaleString() }}
+                  </td>
+                  <td class="p-3 text-center space-x-2 font-medium">
+                    <button @click="viewDetail(plant.id); playSfx('click')" class="text-[#386641] hover:underline font-bold">查看</button>
+                    <button @click="openEditModal(plant); playSfx('click')" class="text-stone-600 hover:text-black">編輯</button>
+                    <button v-if="isHolding(plant.status)" @click="openPropWithParent(plant); playSfx('pop')" class="text-emerald-700 hover:underline">繁殖</button>
+                    <button @click="deletePlant(plant)" class="text-rose-700 hover:underline">移除</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 總數提示(現在一次抓回全部符合條件的植株,不再分頁換頁) -->
+        <div v-if="pagination.total > 0" class="text-center text-xs font-pixel text-[#7f5539] font-bold">
+          共 {{ pagination.total }} 盆符合目前篩選條件
+        </div>
+
+      </main>
+
+      <!-- ==================== 詳情 Modal ==================== -->
+      <div v-if="modals.detail" class="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+        <div class="parchment-panel max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+          
+          <div class="px-6 py-3.5 border-b-2 border-[#dfcca9] flex items-center justify-between bg-[#ecdcc5]">
+            <div class="flex items-center space-x-2">
+              <span v-if="activePlant.status" :class="'status-badge-' + statusSlug(activePlant.status)" class="status-badge px-2.5 py-0.5 rounded-md text-xs font-bold font-pixel inline-flex items-center gap-1">
+                <i :class="statusIcon(activePlant.status)"></i> {{ activePlant.status }}
+              </span>
+              <h2 class="text-base font-bold text-[#3a2211] font-pixel">{{ activePlant.name }}</h2>
+              <span class="text-xs font-mono text-[#7f5539]">{{ activePlant.code }}</span>
+            </div>
+            <button @click="closeModal('detail')" class="text-stone-600 hover:text-black text-lg"><i class="ph-bold ph-x"></i></button>
+          </div>
+
+          <!-- 分頁標籤列 -->
+          <div class="flex border-b-2 border-[#dfcca9] bg-[#fbf6ea] px-6 pt-2 gap-4 text-xs font-medium">
+            <button @click="activeModalTab = 'profile'; playSfx('click')"
+                    :class="activeModalTab === 'profile' ? 'text-[#386641] border-b-3 border-[#386641] font-bold pb-2' : 'text-stone-500 hover:text-black pb-2'">
+              標本檔案
+            </button>
+            <button @click="activeModalTab = 'family'; playSfx('click')"
+                    :class="activeModalTab === 'family' ? 'text-[#386641] border-b-3 border-[#386641] font-bold pb-2' : 'text-stone-500 hover:text-black pb-2'">
+              血統系譜 ({{ activeOffspring.length }})
+            </button>
+            <button @click="activeModalTab = 'photos'; playSfx('click')"
+                    :class="activeModalTab === 'photos' ? 'text-[#386641] border-b-3 border-[#386641] font-bold pb-2' : 'text-stone-500 hover:text-black pb-2'">
+              成長寫真 ({{ activePhotos.length }})
+            </button>
+            <button @click="activeModalTab = 'watering'; playSfx('click')"
+                    :class="activeModalTab === 'watering' ? 'text-[#386641] border-b-3 border-[#386641] font-bold pb-2' : 'text-stone-500 hover:text-black pb-2'">
+              澆水紀錄 ({{ activeWaterings.length }})
+            </button>
+            <button @click="activeModalTab = 'timeline'; playSfx('click')"
+                    :class="activeModalTab === 'timeline' ? 'text-[#386641] border-b-3 border-[#386641] font-bold pb-2' : 'text-stone-500 hover:text-black pb-2'">
+              歷程時間軸
+            </button>
+          </div>
+
+          <div v-if="loading.detail" class="p-16 text-center text-[#7f5539]">
+            <i class="ph-bold ph-spinner-gap text-3xl animate-spin text-emerald-700"></i>
+            <p class="mt-2 text-xs font-medium">翻閱生長檔案簿中...</p>
+          </div>
+
+          <div v-else class="p-6 overflow-y-auto space-y-4 text-xs font-normal">
+            
+            <!-- 檔案內文 -->
+            <div v-if="activeModalTab === 'profile'" class="space-y-4">
+              <div class="grid grid-cols-3 gap-3 bg-white p-4 rounded-xl border-2 border-[#dfcca9]">
+                <div>
+                  <span class="text-stone-500 block mb-1">品種與分類</span>
+                  <p class="font-bold text-[#386641]">{{ activePlant.category || '未分類' }} · {{ activePlant.speciesType === 'HYBRID' ? '雜交種' : '原生種' }}</p>
+                </div>
+                <div>
+                  <span class="text-stone-500 block mb-1">目前溫室分區</span>
+                  <p class="font-bold text-stone-800">{{ activePlant.location ? activePlant.location.name : '未設定' }}</p>
+                </div>
+                <div>
+                  <span class="text-stone-500 block mb-1">購入單價 / 目前估值</span>
+                  <p class="font-bold font-pixel text-sm text-[#b45309]">${{ activePlant.purchasePrice }} / ${{ activePlant.currentPrice }}</p>
+                </div>
+                <div v-if="activePlant.note" class="col-span-3 pt-2 border-t border-[#eee4ce] text-stone-600 leading-relaxed">
+                  <span class="font-bold text-stone-800">照料筆記：</span> {{ activePlant.note }}
+                </div>
+                <div v-if="activePlant.sale" class="col-span-3 pt-2 border-t border-[#eee4ce] text-amber-900 leading-relaxed">
+                  <span class="font-bold">收穫出貨紀錄：</span>
+                  售價 ${{ activePlant.sale.salePrice }}，成本 ${{ activePlant.sale.costBasis }}，
+                  結算收益 <strong :class="activePlant.sale.realizedProfit >= 0 ? 'text-rose-700' : 'text-blue-700'">${{ activePlant.sale.realizedProfit }}</strong>
+                </div>
+                <div v-if="activePlant.status === '已採收' && activePlant.harvestDate" class="col-span-3 pt-2 border-t border-[#eee4ce] text-amber-900 leading-relaxed">
+                  <span class="font-bold">🧺 採收日期：</span>{{ formatDate(activePlant.harvestDate) }}
+                </div>
+              </div>
+
+              <!-- 估值記錄 -->
+              <div class="border-2 border-[#dfcca9] rounded-xl p-4 bg-white">
+                <div class="flex items-center justify-between mb-2">
+                  <h4 class="font-bold text-[#5c3a21]">市價估值歷史</h4>
+                  <button v-if="isHolding(activePlant.status)" @click="openPriceModal(activePlant)" class="text-[#386641] hover:underline font-bold">+ 更新估值</button>
+                </div>
+                <div class="space-y-1.5">
+                  <div v-for="ph in activePriceHistory" :key="ph.id" class="flex justify-between items-center p-2 bg-[#fdfbf5] rounded-lg border border-[#eee4ce]">
+                    <span class="text-stone-600">{{ formatDate(ph.recordedAt) }} · {{ ph.note || '定期手札估值' }}</span>
+                    <span class="font-bold text-[#b45309] font-pixel text-sm">${{ ph.price.toLocaleString() }}</span>
+                  </div>
+                  <div v-if="activePriceHistory.length === 0" class="text-stone-400 italic p-2">尚無估值調整記錄</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 系譜 -->
+            <div v-if="activeModalTab === 'family'" class="space-y-4">
+              <div class="p-3.5 bg-white rounded-xl border-2 border-[#dfcca9]">
+                <span class="text-stone-500 text-[11px] block mb-1">溯源母株</span>
+                <div v-if="activePlant.parent" class="font-bold text-[#386641] flex items-center justify-between">
+                  <span>{{ activePlant.parent.name }} ({{ activePlant.parent.code }})</span>
+                  <button @click="viewDetail(activePlant.parent.id)" class="text-amber-800 hover:underline">查看母株手札</button>
+                </div>
+                <div v-else class="text-stone-400 italic">始祖實生苗或無母株記錄</div>
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between mb-2 font-bold text-[#5c3a21]">
+                  <span>分株後代清單</span>
+                  <span>{{ activeOffspring.length }} 盆</span>
+                </div>
+                <div v-if="activeOffspring.length > 0" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div v-for="child in activeOffspring" :key="child.id" @click="viewDetail(child.id)"
+                       class="p-2.5 bg-white rounded-xl border-2 border-[#dfcca9] flex items-center justify-between cursor-pointer hover:border-[#386641] transition-colors">
+                    <div>
+                      <div class="font-bold text-stone-800">{{ child.name }}</div>
+                      <div class="text-[10px] text-stone-500 font-mono">{{ child.code }}</div>
+                    </div>
+                    <span :class="'status-badge-' + statusSlug(child.status)" class="status-badge px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 font-pixel">
+                      <i :class="statusIcon(child.status)"></i> {{ child.status }}
+                    </span>
+                  </div>
+                </div>
+                <div v-else class="text-center py-8 bg-white rounded-xl border-2 border-dashed border-[#dfcca9] p-6">
+                  <p class="text-2xl mb-1">✂️</p>
+                  <p class="text-stone-700 font-bold">尚無子代繁衍記錄</p>
+                  <p class="text-stone-500 text-xs mt-1 mb-3">此植物尚未進行過分株或扦插。</p>
+                  <button @click="openPropWithParent(activePlant)" class="px-4 py-1.5 btn-leaf text-xs font-bold rounded-lg inline-flex items-center gap-1">
+                    以此株啟動繁殖分盆
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 照片 -->
+            <div v-if="activeModalTab === 'photos'" class="space-y-4">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-[#5c3a21]">標本寫真集 ({{ activePhotos.length }})</span>
+                <button @click="openPhotoUpload(activePlant)" class="text-[#386641] font-bold hover:underline flex items-center gap-1">
+                  <i class="ph-bold ph-camera"></i> 上傳新照片
+                </button>
+              </div>
+              <div v-if="activePhotos.length > 0" class="grid grid-cols-4 gap-2">
+                <div v-for="photo in activePhotos" :key="photo.id" @click="openLightbox(photo)"
+                     class="relative h-24 rounded-lg overflow-hidden border-2 border-[#dfcca9] cursor-pointer group">
+                  <img :src="apiOrigin + photo.url" class="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  <button @click.stop="deletePhoto(photo.id)" class="absolute top-1 right-1 bg-black/60 text-white rounded w-5 h-5 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100">✕</button>
+                </div>
+              </div>
+              <div v-else class="text-center py-8 bg-white rounded-xl border-2 border-dashed border-[#dfcca9] p-6">
+                <p class="text-2xl mb-1">📷</p>
+                <p class="text-stone-700 font-bold">尚未拍攝寫真照片</p>
+                <p class="text-stone-500 text-xs mt-1 mb-3">拍攝植物成長照，即可作為圖鑑封面標本。</p>
+                <button @click="openPhotoUpload(activePlant)" class="px-4 py-1.5 btn-wood text-xs font-bold rounded-lg">
+                  立即上傳首張寫真
+                </button>
+              </div>
+            </div>
+
+            <!-- 澆水紀錄 -->
+            <div v-if="activeModalTab === 'watering'" class="space-y-4">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-[#5c3a21]">💧 澆水紀錄簿({{ activeWaterings.length }} 次)</span>
+                <button v-if="isHolding(activePlant.status)" @click="waterNow(activePlant)" class="text-sky-700 font-bold hover:underline flex items-center gap-1">
+                  <i class="ph-bold ph-drop"></i> 立即澆水
+                </button>
+              </div>
+              <div v-if="activeWaterings.length > 0" class="space-y-1.5 max-h-64 overflow-y-auto">
+                <div v-for="w in activeWaterings" :key="w.id" class="flex justify-between items-center p-2 bg-white rounded-lg border border-sky-200">
+                  <span class="text-stone-600">{{ formatDateTime(w.wateredAt) }}</span>
+                  <span class="text-stone-400">{{ w.note || '無備註' }}</span>
+                </div>
+              </div>
+              <div v-else class="text-center py-8 bg-white rounded-xl border-2 border-dashed border-[#dfcca9] p-6">
+                <p class="text-2xl mb-1">💧</p>
+                <p class="text-stone-700 font-bold">尚無澆水紀錄</p>
+                <p class="text-stone-500 text-xs mt-1 mb-3">記錄每次澆水,追蹤植物的照顧頻率。</p>
+                <button v-if="isHolding(activePlant.status)" @click="waterNow(activePlant)" class="px-4 py-1.5 btn-leaf text-xs font-bold rounded-lg">
+                  記錄第一次澆水
+                </button>
+              </div>
+            </div>
+
+            <!-- 時間軸 -->
+            <div v-if="activeModalTab === 'timeline'" class="space-y-4">
+              <h4 class="font-bold text-[#5c3a21]">生長歷程記事簿</h4>
+              <div v-for="(events, type) in activeTimeline.timeline" :key="type" class="mb-3">
+                <div class="text-[#386641] font-bold mb-1.5 flex items-center gap-1">
+                  <i class="ph-bold ph-leaf"></i> {{ type }} ({{ events.length }})
+                </div>
+                <div class="relative pl-5 border-l-2 border-[#dfcca9] space-y-2.5">
+                  <div v-for="evt in events" :key="evt.id" class="relative">
+                    <div class="absolute -left-[25px] top-1 w-2.5 h-2.5 rounded-full bg-[#386641]"></div>
+                    <div class="text-[10px] text-stone-500 font-mono">{{ formatDate(evt.eventDate) }}</div>
+                    <p class="text-stone-700 mt-0.5 leading-relaxed">{{ formatEventContent(evt) }}</p>
+                  </div>
+                </div>
+              </div>
+              <div v-if="!activeTimeline.timeline || Object.keys(activeTimeline.timeline).length === 0" class="text-stone-400 italic text-center py-6">
+                尚無記事紀錄
+              </div>
+            </div>
+
+          </div>
+
+          <div class="px-6 py-3 bg-[#ecdcc5] border-t-2 border-[#dfcca9] flex justify-between">
+            <button @click="deletePlant(activePlant)" class="text-rose-700 hover:underline font-bold flex items-center gap-1">
+              <i class="ph-bold ph-trash"></i> 移除此植物
+            </button>
+            <button @click="closeModal('detail')" class="px-4 py-1.5 btn-wood rounded-xl font-bold font-pixel">闔上手札</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== 其他 Modal 群 (保持業務邏輯) ==================== -->
+      
+      <!-- 新增植物 -->
+      <div v-if="modals.addPlant" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+        <div class="parchment-panel max-w-md w-full p-6 space-y-4 text-xs text-stone-800 font-normal">
+          <h3 class="font-bold text-sm text-[#5c3a21] font-pixel flex items-center gap-2">
+            <i class="ph-bold ph-plus-circle text-emerald-700"></i> 登錄新植物標本
+          </h3>
+          <div>
+            <label class="block font-bold mb-1">植物名稱 *</label>
+            <input v-model.trim="newPlantForm.name" required class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl text-stone-900" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold mb-1">品種 (Variety)</label>
+              <input v-model.trim="newPlantForm.variety" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl" />
+            </div>
+            <div>
+              <label class="block font-bold mb-1">分類</label>
+              <input v-model.trim="newPlantForm.category" placeholder="如：鹿角蕨" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold mb-1">品系</label>
+              <select v-model="newPlantForm.speciesType" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl">
+                <option value="SPECIES">原生種</option>
+                <option value="HYBRID">雜交種</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold mb-1">溫室分區</label>
+              <select :value="newPlantForm.locationId" @change="handleLocationSelectChange($event, newPlantForm, 'locationId')" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl">
+                <option value="">未設定分區</option>
+                <option v-for="l in locations" :key="l.id" :value="l.id">{{ l.name }}</option>
+                <option value="__new__">+ 新增分區...</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block font-bold mb-1">照料備忘</label>
+            <textarea v-model.trim="newPlantForm.note" rows="2" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl"></textarea>
+          </div>
+          <div class="pt-2 flex justify-end space-x-2">
+            <button @click="closeModal('addPlant')" class="px-4 py-2 btn-wood rounded-xl font-bold font-pixel">取消</button>
+            <button @click="submitAddPlant" class="px-5 py-2 btn-leaf font-bold font-pixel rounded-xl">確認收錄</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 批次購買 -->
+      <div v-if="modals.purchase" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+        <div class="parchment-panel max-w-lg w-full p-6 space-y-4 text-xs text-stone-800 font-normal max-h-[90vh] overflow-y-auto">
+          <h3 class="font-bold text-sm text-[#5c3a21] font-pixel flex items-center gap-2">
+            <i class="ph-bold ph-shopping-bag text-emerald-700"></i> 市集批次進貨採購
+          </h3>
+          <p class="text-[11px] text-amber-800 bg-amber-100/70 border border-amber-300 rounded-xl p-2.5">
+            說明:每株成本 = 單價,可依序把不同植物加入下方清單,最後一次送出結算。
+          </p>
+
+          <!-- 共用欄位 -->
+          <div class="grid grid-cols-3 gap-2.5 bg-white/70 p-3 rounded-xl border-2 border-[#dfcca9]">
+            <div>
+              <label class="block font-bold mb-1">花市供應商 / 賣家</label>
+              <input v-model.trim="purchaseForm.seller" class="w-full p-2 bg-white border-2 border-[#dfcca9] rounded-xl" />
+            </div>
+            <div>
+              <label class="block font-bold mb-1">採購地點</label>
+              <input v-model.trim="purchaseForm.purchaseLocation" placeholder="如：花市、蝦皮賣家" class="w-full p-2 bg-white border-2 border-[#dfcca9] rounded-xl" />
+            </div>
+            <div>
+              <label class="block font-bold mb-1">採購日期</label>
+              <input v-model="purchaseForm.purchaseDate" type="date" class="w-full p-2 bg-white border-2 border-[#dfcca9] rounded-xl" />
+            </div>
+          </div>
+
+          <!-- 加入清單的小表單 -->
+          <div class="border-2 border-emerald-300 rounded-xl p-3 space-y-2 bg-emerald-50/40">
+            <div class="font-bold text-[#386641] flex items-center gap-1"><i class="ph-bold ph-plus-circle"></i> 新增品項</div>
+            <input v-model.trim="purchaseItemForm.name" placeholder="植物名稱 *" class="w-full p-2 bg-white border-2 border-[#dfcca9] rounded-xl" />
+            <div class="grid grid-cols-2 gap-2">
+              <input v-model.trim="purchaseItemForm.variety" placeholder="品種" class="w-full p-2 bg-white border-2 border-[#dfcca9] rounded-xl" />
+              <input v-model.trim="purchaseItemForm.category" placeholder="分類(如：鹿角蕨)" class="w-full p-2 bg-white border-2 border-[#dfcca9] rounded-xl" />
+            </div>
+            <div>
+              <label class="block font-bold mb-1 text-[10px] text-stone-500">放置分區</label>
+              <select :value="purchaseItemForm.locationId" @change="handleLocationSelectChange($event, purchaseItemForm, 'locationId')" class="w-full p-2 bg-white border-2 border-[#dfcca9] rounded-xl">
+                <option value="">未設定</option>
+                <option v-for="l in locations" :key="l.id" :value="l.id">{{ l.name }}</option>
+                <option value="__new__">+ 新增分區...</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block font-bold mb-1 text-[10px] text-stone-500">單株進價 ($) *</label>
+                <input v-model.number="purchaseItemForm.unitPrice" type="number" min="0" class="w-full p-2 bg-white border-2 border-[#dfcca9] rounded-xl font-pixel text-sm" />
+              </div>
+              <div>
+                <label class="block font-bold mb-1 text-[10px] text-stone-500">採購數量 (盆) *</label>
+                <input v-model.number="purchaseItemForm.quantity" type="number" min="1" max="100" class="w-full p-2 bg-white border-2 border-[#dfcca9] rounded-xl font-pixel text-sm" />
+              </div>
+            </div>
+            <button @click="addPurchaseItem" class="w-full py-2 btn-leaf font-bold font-pixel rounded-xl flex items-center justify-center gap-1">
+              <i class="ph-bold ph-plus"></i> 加入清單
+            </button>
+          </div>
+
+          <!-- 已加入的清單 -->
+          <div>
+            <div class="font-bold text-[#5c3a21] mb-1.5 flex items-center justify-between">
+              <span>採購清單({{ purchaseCart.length }} 項)</span>
+              <span v-if="purchaseCart.length > 0" class="text-[#b45309] font-pixel">
+                合計 {{ purchaseCartTotalQty }} 盆 · ${{ purchaseCartTotalPrice.toLocaleString() }}
+              </span>
+            </div>
+            <div v-if="purchaseCart.length === 0" class="text-stone-400 italic text-center py-4 bg-white/60 rounded-xl border-2 border-dashed border-[#dfcca9]">
+              尚未加入任何品項
+            </div>
+            <div v-else class="space-y-1.5 max-h-48 overflow-y-auto">
+              <div v-for="(item, idx) in purchaseCart" :key="idx" class="flex items-center justify-between p-2 bg-white rounded-xl border-2 border-[#dfcca9]">
+                <div>
+                  <div class="font-bold text-stone-800">{{ item.name }}<span v-if="item.variety" class="text-stone-400 font-normal"> · {{ item.variety }}</span></div>
+                  <div class="text-stone-400">{{ item.category || '未分類' }} · ${{ item.unitPrice }} × {{ item.quantity }} 盆 = ${{ (item.unitPrice * item.quantity).toLocaleString() }}</div>
+                </div>
+                <button @click="purchaseCart.splice(idx, 1)" class="text-rose-600 hover:text-rose-800 w-6 h-6 flex items-center justify-center">
+                  <i class="ph-bold ph-x-circle text-base"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2 flex justify-end space-x-2 sticky bottom-0 bg-[#fffcf2]">
+            <button @click="closeModal('purchase')" class="px-4 py-2 btn-wood rounded-xl font-bold font-pixel">取消</button>
+            <button @click="submitPurchaseCart(); playSfx('coin')" :disabled="purchaseCart.length === 0 || loading.purchase"
+                    class="px-5 py-2 btn-leaf disabled:opacity-40 font-bold font-pixel rounded-xl">
+              {{ loading.purchase ? '結算中...' : `確認收錄全部(${purchaseCartTotalQty} 盆)` }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 編輯資料 -->
+      <div v-if="modals.editPlant" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+        <div class="parchment-panel max-w-md w-full p-6 space-y-4 text-xs text-stone-800 font-normal">
+          <h3 class="font-bold text-sm text-[#5c3a21] font-pixel flex items-center gap-2"><i class="ph-bold ph-pencil text-emerald-700"></i> 修改標本筆記</h3>
+          <div>
+            <label class="block font-bold mb-1">植物名稱 *</label>
+            <input v-model.trim="editForm.name" required class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold mb-1">品種</label>
+              <input v-model.trim="editForm.variety" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl" />
+            </div>
+            <div>
+              <label class="block font-bold mb-1">分類</label>
+              <input v-model.trim="editForm.category" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl" />
+            </div>
+          </div>
+          <div>
+            <label class="block font-bold mb-1">品系類別</label>
+            <select v-model="editForm.speciesType" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl">
+              <option value="SPECIES">原生種</option>
+              <option value="HYBRID">雜交種</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold mb-1">備註</label>
+            <textarea v-model.trim="editForm.note" rows="3" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl"></textarea>
+          </div>
+          <div class="flex justify-end space-x-2 pt-2">
+            <button @click="closeModal('editPlant')" class="px-4 py-2 btn-wood rounded-xl font-bold font-pixel">取消</button>
+            <button @click="submitEditPlant" class="px-4 py-2 btn-leaf font-bold font-pixel rounded-xl">儲存手札</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 市價更新 -->
+      <div v-if="modals.priceUpdate" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+        <div class="parchment-panel max-w-sm w-full p-6 space-y-4 text-xs text-stone-800 font-normal">
+          <h3 class="font-bold text-sm text-[#5c3a21] font-pixel flex items-center gap-2"><i class="ph-bold ph-coins text-amber-600"></i> 市價估值校準</h3>
+          <p class="text-stone-600">更新 <strong>{{ priceUpdateForm.name }}</strong> 的當前市場估值。</p>
+          <div>
+            <label class="block font-bold mb-1">最新估值 ($) *</label>
+            <input v-model.number="priceUpdateForm.newPrice" type="number" min="0" required class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl font-pixel text-base" />
+          </div>
+          <div>
+            <label class="block font-bold mb-1">估值變動備忘</label>
+            <input v-model.trim="priceUpdateForm.note" placeholder="例如：植株長出新冠葉" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl" />
+          </div>
+          <div class="flex justify-end space-x-2 pt-2">
+            <button @click="closeModal('priceUpdate')" class="px-4 py-2 btn-wood rounded-xl font-bold font-pixel">取消</button>
+            <button @click="submitPriceUpdate" class="px-4 py-2 btn-leaf font-bold font-pixel rounded-xl">確認更新</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 照片上傳 -->
+      <div v-if="modals.photoUpload" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+        <div class="parchment-panel max-w-md w-full p-6 space-y-4 text-xs text-stone-800 font-normal">
+          <h3 class="font-bold text-sm text-[#5c3a21] font-pixel flex items-center gap-2"><i class="ph-bold ph-camera text-emerald-700"></i> 收錄寫真照</h3>
+          <div @dragover.prevent @drop.prevent="handleFileDrop"
+               class="border-2 border-dashed border-[#dfcca9] hover:border-[#386641] rounded-xl p-6 text-center bg-white cursor-pointer transition-colors"
+               @click="$refs.fileInput.click()">
+            <i class="ph-duotone ph-image text-4xl text-[#386641] mb-1"></i>
+            <p class="font-bold">點擊選擇照片，或拖曳圖片至此處</p>
+            <p class="text-[10px] text-stone-400 mt-1 font-mono">JPG / PNG / WEBP / GIF · MAX 15MB</p>
+            <input ref="fileInput" type="file" multiple accept="image/*" class="hidden" @change="handleFileSelect" />
+          </div>
+          <div v-if="pendingUploads.length > 0">
+            <span class="block mb-1.5 font-bold">待收錄照片 ({{ pendingUploads.length }})：</span>
+            <div class="grid grid-cols-4 gap-2">
+              <div v-for="(f, idx) in pendingUploads" :key="idx" class="relative h-16 rounded-lg overflow-hidden border border-stone-300">
+                <img :src="f.preview" class="w-full h-full object-cover" />
+                <button @click.stop="pendingUploads.splice(idx, 1)" class="absolute top-1 right-1 bg-black/60 text-white rounded w-4 h-4 flex items-center justify-center text-[10px]">✕</button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="block font-bold mb-1">寫真備忘說明</label>
+            <input v-model.trim="photoNote" placeholder="例如：春季新芽展開" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl" />
+          </div>
+          <div class="flex justify-end space-x-2 pt-2">
+            <button @click="closeModal('photoUpload')" class="px-4 py-2 btn-wood rounded-xl font-bold font-pixel">取消</button>
+            <button @click="submitPhotos" :disabled="pendingUploads.length === 0 || loading.upload"
+                    class="px-4 py-2 btn-leaf disabled:opacity-40 font-bold font-pixel rounded-xl">
+              {{ loading.upload ? '上傳中...' : '確認上傳' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 移動位置 -->
+      <div v-if="modals.move" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+        <div class="parchment-panel max-w-sm w-full p-5 space-y-4 text-xs text-stone-800 font-normal">
+          <h3 class="font-bold text-sm text-[#5c3a21] font-pixel flex items-center gap-2"><i class="ph-bold ph-arrows-out-cardinal text-sky-700"></i> 移動溫室分區</h3>
+          <p class="text-stone-600">將 <strong>{{ activePlant.name }}</strong> 移動至新苗床分區。</p>
+          <div>
+            <label class="block font-bold mb-1">目標分區</label>
+            <select :value="moveForm.toLocationId" @change="handleLocationSelectChange($event, moveForm, 'toLocationId')" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl">
+              <option v-for="l in locations" :key="l.id" :value="l.id">{{ l.name }}</option>
+              <option value="__new__">+ 新增分區...</option>
+            </select>
+          </div>
+          <div class="flex justify-end space-x-2">
+            <button @click="closeModal('move')" class="px-4 py-2 btn-wood rounded-xl font-bold font-pixel">取消</button>
+            <button @click="submitMove" class="px-4 py-2 btn-leaf font-bold font-pixel rounded-xl">確認搬移</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 繁殖分盆 -->
+      <div v-if="modals.propagation" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+        <div class="parchment-panel max-w-md w-full p-6 space-y-4 text-xs text-stone-800 font-normal">
+          <h3 class="font-bold text-sm text-[#5c3a21] font-pixel flex items-center gap-2"><i class="ph-bold ph-git-fork text-emerald-700"></i> 繁殖分盆事件</h3>
+          <div v-if="propForm.parentPlantId" class="bg-emerald-50 border-2 border-emerald-300 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <span class="text-stone-500 text-[10px] block mb-0.5">繁殖母株</span>
+              <span class="font-bold text-[#386641]">{{ propParentDisplay }}</span>
+            </div>
+            <button @click="propForm.parentPlantId = ''" class="text-[10px] text-amber-800 hover:underline">改選其他株</button>
+          </div>
+          <div v-else>
+            <label class="block font-bold mb-1">選擇繁殖母株 *</label>
+            <select v-model="propForm.parentPlantId" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl">
+              <option value="" disabled>請選擇...</option>
+              <option v-for="p in plants" :key="p.id" :value="p.id">{{ p.name }} ({{ p.code }})</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold mb-1">繁衍方式</label>
+              <select v-model="propForm.method" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl">
+                <option value="分株">分株</option>
+                <option value="扦插">扦插</option>
+                <option value="播種">播種</option>
+                <option value="雜交">雜交</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold mb-1">誕生子株數量 (盆)</label>
+              <input v-model.number="propForm.offspringCount" type="number" min="1" max="50" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl font-pixel text-sm" />
+            </div>
+          </div>
+          <p class="text-[11px] text-[#386641] bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+            說明：子株個體代碼將自動以母株為前綴(如 {{ propParentCodePreview }}-01,依序遞增)。
+          </p>
+          <div class="flex justify-end space-x-2">
+            <button @click="closeModal('propagation')" class="px-4 py-2 btn-wood rounded-xl font-bold font-pixel">取消</button>
+            <button @click="submitPropagation" class="px-5 py-2 btn-leaf font-bold font-pixel rounded-xl">產出新苗</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 狀態流轉 -->
+      <div v-if="modals.status" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+        <div class="parchment-panel max-w-sm w-full p-5 space-y-4 text-xs text-stone-800 font-normal">
+          <h3 class="font-bold text-sm text-[#5c3a21] font-pixel flex items-center gap-2"><i class="ph-bold ph-arrow-clockwise text-amber-700"></i> 生命狀態轉換 ({{ activePlant.name }})</h3>
+          <div>
+            <label class="block font-bold mb-1">目標狀態</label>
+            <select v-model="statusForm.targetStatus" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl">
+              <optgroup label="持有狀態 (計入溫室資產)">
+                <option value="幼苗">幼苗</option>
+                <option value="成長中">成長中</option>
+                <option value="成株">成株</option>
+                <option value="狀況不佳">狀況不佳</option>
+              </optgroup>
+              <optgroup label="終止狀態 (自資產清冊移出)">
+                <option value="出售">出售 (出貨結算)</option>
+                <option value="送人">送人 (結緣贈與)</option>
+                <option value="死亡">死亡 (長眠回歸自然)</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <div v-if="statusForm.targetStatus === '出售'" class="space-y-2 bg-amber-50 p-3 rounded-xl border border-amber-300">
+            <label class="block font-bold text-amber-900">收穫售出金額 ($) *</label>
+            <input v-model.number="statusForm.salePrice" type="number" min="0" required class="w-full p-2.5 bg-white border border-amber-300 rounded-xl font-pixel text-sm" />
+            <div class="text-[11px] text-amber-800 font-medium">
+              預計實現收益：
+              <strong :class="(statusForm.salePrice - activePlant.purchasePrice) >= 0 ? 'text-rose-700' : 'text-blue-700'">
+                ${{ ((statusForm.salePrice || 0) - (activePlant.purchasePrice || 0)).toLocaleString() }}
+              </strong>
+            </div>
+          </div>
+
+          <div v-if="statusForm.targetStatus === '送人'" class="space-y-2 bg-purple-50 p-3 rounded-xl border border-purple-200">
+            <label class="block font-bold text-purple-900">受贈朋友姓名 *</label>
+            <input v-model.trim="statusForm.giftRecipient" required class="w-full p-2.5 bg-white border border-purple-300 rounded-xl" />
+          </div>
+
+          <div v-if="statusForm.targetStatus === '死亡'" class="space-y-2 bg-stone-100 p-3 rounded-xl border border-stone-300">
+            <label class="block font-bold text-stone-700">長眠日期</label>
+            <input v-model="statusForm.deathDate" type="date" class="w-full p-2.5 bg-white border border-stone-300 rounded-xl" />
+          </div>
+
+          <div class="flex justify-end space-x-2 pt-2">
+            <button @click="closeModal('status')" class="px-4 py-2 btn-wood rounded-xl font-bold font-pixel">取消</button>
+            <button @click="submitStatusChange" class="px-4 py-2 btn-leaf font-bold font-pixel rounded-xl">確認流轉</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="lightboxPhoto" @click="lightboxPhoto = null" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 cursor-zoom-out">
+        <img :src="apiOrigin + lightboxPhoto.url" class="max-w-full max-h-[90vh] rounded-xl shadow-2xl border-4 border-[#ecdcc5] object-contain" />
+      </div>
+
+    </template>
+  </div>
+
+  <script>
+    const { createApp, ref, reactive, computed, onMounted } = Vue;
+
+    const soundEngine = {
+      ctx: null,
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) this.ctx = new AudioContext();
+        }
+      },
+      play(type) {
+        try {
+          this.init();
+          if (!this.ctx) return;
+          if (this.ctx.state === 'suspended') this.ctx.resume();
+
+          const now = this.ctx.currentTime;
+          if (type === 'click') {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(320, now);
+            osc.frequency.exponentialRampToValueAtTime(120, now + 0.04);
+            gain.gain.setValueAtTime(0.12, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.04);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.04);
+          } else if (type === 'pop') {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(800, now + 0.06);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.06);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.06);
+          } else if (type === 'coin') {
+            [880, 1174.66].forEach((freq, idx) => {
+              const osc = this.ctx.createOscillator();
+              const gain = this.ctx.createGain();
+              osc.type = 'square';
+              osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+              gain.gain.setValueAtTime(0.04, now + idx * 0.05);
+              gain.gain.linearRampToValueAtTime(0.005, now + idx * 0.05 + 0.12);
+              osc.connect(gain);
+              gain.connect(this.ctx.destination);
+              osc.start(now + idx * 0.05);
+              osc.stop(now + idx * 0.05 + 0.13);
+            });
+          } else if (type === 'success') {
+            [440, 554.37, 659.25, 880].forEach((freq, idx) => {
+              const osc = this.ctx.createOscillator();
+              const gain = this.ctx.createGain();
+              osc.type = 'triangle';
+              osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+              gain.gain.setValueAtTime(0.08, now + idx * 0.06);
+              gain.gain.linearRampToValueAtTime(0.01, now + idx * 0.06 + 0.16);
+              osc.connect(gain);
+              gain.connect(this.ctx.destination);
+              osc.start(now + idx * 0.06);
+              osc.stop(now + idx * 0.06 + 0.18);
+            });
+          } else if (type === 'error') {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(140, now);
+            osc.frequency.linearRampToValueAtTime(90, now + 0.15);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.15);
+          }
+        } catch (e) {
+          console.warn('Audio error:', e);
+        }
+      }
+    };
+
+    const app = createApp({
+      setup() {
+        const DEFAULT_CREDENTIALS = { username: 'owner', password: 'changeme123' };
+
+        // 【部署設定】本機/LAN 分享留空字串會自動偵測;部署到不同網域(如 Zeabur)時,
+        // 把後端正式網址填在這裡。
+        const PRODUCTION_API_BASE = '';
+
+        const auth = reactive({
+          apiBase:
+            localStorage.getItem('pt_api_base') ||
+            PRODUCTION_API_BASE ||
+            `${window.location.protocol}//${window.location.hostname}:4000`,
+          token: localStorage.getItem('pt_token') || '',
+          loading: false,
+          error: '',
+        });
+
+        const apiOrigin = computed(() => auth.apiBase.replace(/\/$/, ''));
+
+        const soundEnabled = ref(localStorage.getItem('pt_sound') !== 'false');
+        const viewMode = ref('cards');
+        const guideCollapsed = ref(localStorage.getItem('pt_guide_collapsed') === 'true');
+        const activeModalTab = ref('profile');
+
+        function toggleSound() {
+          soundEnabled.value = !soundEnabled.value;
+          localStorage.setItem('pt_sound', soundEnabled.value);
+          if (soundEnabled.value) soundEngine.play('pop');
+        }
+
+        // 新增並落實 localStorage 寫入機制
+        function toggleGuide() {
+          guideCollapsed.value = !guideCollapsed.value;
+          localStorage.setItem('pt_guide_collapsed', guideCollapsed.value);
+          playSfx('click');
+        }
+
+        function playSfx(type) {
+          if (soundEnabled.value) soundEngine.play(type);
+        }
+
+        async function apiFetch(path, options = {}) {
+          const url = apiOrigin.value + path;
+          const headers = { ...(options.headers || {}) };
+          if (auth.token) headers['Authorization'] = 'Bearer ' + auth.token;
+          const isFormData = options.body instanceof FormData;
+          if (!isFormData && options.body) headers['Content-Type'] = 'application/json';
+
+          const res = await fetch(url, { ...options, headers });
+          if (res.status === 204) return null;
+
+          let data = null;
+          try { data = await res.json(); } catch (e) {}
+
+          if (!res.ok) {
+            const code = data && data.error ? data.error.code : 'UNKNOWN_ERROR';
+            const message = data && data.error ? data.error.message : `HTTP ${res.status}`;
+            const err = new Error(message);
+            err.code = code;
+            err.status = res.status;
+            throw err;
+          }
+          return data;
+        }
+
+        const toast = reactive({ message: '', type: 'info' });
+        function showToast(message, type = 'info') {
+          toast.message = message;
+          toast.type = type;
+          if (type === 'error') playSfx('error');
+          else playSfx('success');
+          setTimeout(() => { if (toast.message === message) toast.message = ''; }, 4000);
+        }
+        function showError(err) {
+          console.error(err);
+          showToast(`${err.code ? '[' + err.code + '] ' : ''}${err.message}`, 'error');
+        }
+
+        const STATUS_LIST = ['幼苗', '成長中', '成株', '狀況不佳', '死亡', '出售', '送人', '已採收'];
+        const NON_HOLDING = ['死亡', '出售', '送人', '已採收'];
+        const isHolding = (status) => !NON_HOLDING.includes(status);
+        const statusSlug = (status) => ({
+          '幼苗': 'seedling', '成長中': 'growing', '成株': 'mature', '狀況不佳': 'unhealthy',
+          '死亡': 'dead', '出售': 'sold', '送人': 'gifted', '已採收': 'harvested',
+        }[status] || 'seedling');
+
+        function statusIcon(status) {
+          return {
+            '幼苗': 'ph-bold ph-plant',
+            '成長中': 'ph-bold ph-trend-up',
+            '成株': 'ph-bold ph-crown',
+            '狀況不佳': 'ph-bold ph-warning-circle',
+            '出售': 'ph-bold ph-coins',
+            '送人': 'ph-bold ph-gift',
+            '死亡': 'ph-bold ph-skull',
+            '已採收': 'ph-bold ph-basket',
+          }[status] || 'ph-bold ph-dot';
+        }
+
+        // 三區分類:種植中 / 已採收 / 已離庫(死亡/出售/送人),彼此獨立顯示不混在一起
+        const GROWING_STATUSES = ['幼苗', '成長中', '成株', '狀況不佳'];
+        const TERMINAL_STATUSES = ['死亡', '出售', '送人'];
+        const growingPlants = computed(() => plants.value.filter((p) => GROWING_STATUSES.includes(p.status)));
+        const harvestedPlants = computed(() => plants.value.filter((p) => p.status === '已採收'));
+        const terminalPlants = computed(() => plants.value.filter((p) => TERMINAL_STATUSES.includes(p.status)));
+
+        function terminalLabel(status) {
+          return status === '已採收' ? '已收成' : '已結案';
+        }
+
+        // 澆水:「多久前澆過水」文字顯示
+        function formatLastWatered(plant) {
+          const last = plant.waterings && plant.waterings[0] ? plant.waterings[0].wateredAt : null;
+          if (!last) return '尚未澆水';
+          const days = Math.floor((Date.now() - new Date(last).getTime()) / (1000 * 60 * 60 * 24));
+          if (days <= 0) return '今天澆過';
+          return `${days} 天前`;
+        }
+
+        function plantCoverUrl(plant) {
+          if (plant.photos && plant.photos.length > 0 && plant.photos[0].url) {
+            return apiOrigin.value + plant.photos[0].url;
+          }
+          return null;
+        }
+
+        const loading = reactive({ plants: false, detail: false, upload: false, purchase: false });
+        const plants = ref([]);
+        const locations = ref([]);
+        const dashboard = ref({});
+        const showFinanceBreakdown = ref(false);
+        const pagination = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 });
+        const filters = reactive({ search: '', status: '', location_id: '' });
+
+        const modals = reactive({
+          detail: false, addPlant: false, purchase: false, editPlant: false,
+          priceUpdate: false, photoUpload: false, move: false, propagation: false, status: false,
+        });
+        const openModal = (name) => { modals[name] = true; };
+        const closeModal = (name) => { modals[name] = false; };
+
+        const activePlant = ref({});
+        const activePhotos = ref([]);
+        const activePriceHistory = ref([]);
+        const activeOffspring = ref([]);
+        const activeTimeline = ref({ summary: null, timeline: {} });
+        const activeWaterings = ref([]);
+        const lightboxPhoto = ref(null);
+
+        async function autoLogin() {
+          if (auth.token) return bootstrap();
+          auth.loading = true;
+          auth.error = '';
+          try {
+            const data = await apiFetch('/api/auth/login', {
+              method: 'POST',
+              body: JSON.stringify(DEFAULT_CREDENTIALS),
+            });
+            auth.token = data.token;
+            localStorage.setItem('pt_token', data.token);
+            localStorage.setItem('pt_api_base', auth.apiBase);
+            await bootstrap();
+          } catch (err) {
+            auth.error = err.message || '自動登入失敗';
+          } finally {
+            auth.loading = false;
+          }
+        }
+
+        async function loadLocations() { locations.value = await apiFetch('/api/locations'); }
+        async function loadDashboard() { dashboard.value = await apiFetch('/api/dashboard/summary'); }
+
+        // 每個能選位置的下拉選單,最後都內建一個「+ 新增分區...」選項(value="__new__")。
+        async function handleLocationSelectChange(event, targetObj, fieldName, onNormalSelect) {
+          const value = event.target.value;
+          if (value !== '__new__') {
+            targetObj[fieldName] = value;
+            if (onNormalSelect) onNormalSelect();
+            return;
+          }
+          const name = window.prompt('請輸入新的溫室分區名稱：');
+          if (!name || !name.trim()) {
+            event.target.value = targetObj[fieldName] || '';
+            return;
+          }
+          try {
+            const loc = await apiFetch('/api/locations', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
+            await loadLocations();
+            targetObj[fieldName] = loc.id;
+            showToast(`已新增分區「${loc.name}」`);
+            if (onNormalSelect) onNormalSelect();
+          } catch (err) {
+            showError(err);
+            event.target.value = targetObj[fieldName] || '';
+          }
+        }
+
+        async function reloadPlants() {
+          loading.plants = true;
+          try {
+            const params = new URLSearchParams();
+            if (filters.search) params.set('search', filters.search);
+            if (filters.status) params.set('status', filters.status);
+            if (filters.location_id) params.set('location_id', filters.location_id);
+            // 一次抓回符合條件的「全部」植株,不再分頁。
+            // 原本用分頁 API 抓一頁(如 20 筆)再做種植中/已採收/已離庫三區分類,
+            // 資料一多就會出現死亡/出售的植株只出現在某幾頁、其他頁看不到的
+            // 錯亂現象——因為分類是對「單頁」做的,不是對「完整符合條件的結果」。
+            params.set('limit', 1000);
+
+            const data = await apiFetch('/api/plants?' + params.toString());
+            plants.value = data.items;
+            Object.assign(pagination, data.pagination);
+          } catch (err) {
+            showError(err);
+          } finally {
+            loading.plants = false;
+          }
+        }
+
+        let debounceTimer = null;
+        function debouncedReload() {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => { pagination.page = 1; reloadPlants(); }, 400);
+        }
+
+
+        async function bootstrap() {
+          try {
+            await Promise.all([loadLocations(), loadDashboard(), reloadPlants()]);
+          } catch (err) {
+            if (err.status === 401) {
+              auth.token = '';
+              localStorage.removeItem('pt_token');
+              return autoLogin();
+            }
+            showError(err);
+          }
+        }
+
+        async function refreshAfterAction() {
+          await Promise.all([loadDashboard(), reloadPlants(), loadLocations()]);
+        }
+
+        async function viewDetail(plantId) {
+          activeModalTab.value = 'profile';
+          modals.detail = true;
+          loading.detail = true;
+          try {
+            const [plant, photos, priceHistory, offspring, timeline, watering] = await Promise.all([
+              apiFetch(`/api/plants/${plantId}`),
+              apiFetch(`/api/plants/${plantId}/photos`),
+              apiFetch(`/api/plants/${plantId}/price-history`),
+              apiFetch(`/api/plants/${plantId}/offspring`),
+              apiFetch(`/api/plants/${plantId}/timeline?group=true`),
+              apiFetch(`/api/plants/${plantId}/waterings`),
+            ]);
+            activePlant.value = plant;
+            activePhotos.value = photos;
+            activePriceHistory.value = priceHistory;
+            activeOffspring.value = offspring;
+            activeTimeline.value = timeline;
+            activeWaterings.value = watering.items;
+          } catch (err) {
+            showError(err);
+            modals.detail = false;
+          } finally {
+            loading.detail = false;
+          }
+        }
+
+        function openPropWithParent(plant) {
+          closeModal('detail');
+          Object.assign(propForm, { parentPlantId: plant.id, method: '分株', offspringCount: 2 });
+          openModal('propagation');
+        }
+
+        function formatDate(d) {
+          if (!d) return '';
+          return new Date(d).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' });
+        }
+
+        // 澆水紀錄需要看到幾點幾分澆的(一天可能澆水不只一次),用這個含時分的版本
+        function formatDateTime(d) {
+          if (!d) return '';
+          return new Date(d).toLocaleString('zh-TW', {
+            timeZone: 'Asia/Taipei', hour12: false,
+            year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+          });
+        }
+
+        function formatEventContent(evt) {
+          const c = evt.content;
+          if (!c) return evt.eventType;
+          if (evt.eventType === '買入') return `進貨單價 $${c.unitPrice}${c.seller ? '，來源：' + c.seller : ''}`;
+          if (evt.eventType === '市價更新') return `估值調整：$${c.from ?? '-'} → $${c.to}`;
+          if (evt.eventType === '移動') return `搬移至新溫室分區`;
+          if (evt.eventType === '出售') return `以 $${c.salePrice} 售出，收穫收益 $${c.realizedProfit}`;
+          if (evt.eventType === '繁殖') return `方式：${c.method}${c.offspringCount ? '，誕生 ' + c.offspringCount + ' 盆' : ''}`;
+          if (evt.eventType === '拍照') return '收錄新寫真照片';
+          if (evt.eventType === '澆水') return c.note ? `澆水，備註：${c.note}` : '澆水一次';
+          if (evt.eventType === '死亡' || evt.eventType === '送人' || evt.eventType === '採收') return `狀態轉換：${c.from} → ${c.to}`;
+          return JSON.stringify(c);
+        }
+
+        // 新增植物
+        const newPlantForm = reactive({ name: '', variety: '', category: '', speciesType: 'SPECIES', locationId: '', note: '' });
+        async function submitAddPlant() {
+          try {
+            await apiFetch('/api/plants', { method: 'POST', body: JSON.stringify({ ...newPlantForm }) });
+            showToast('已收錄新植物至手札！');
+            closeModal('addPlant');
+            Object.assign(newPlantForm, { name: '', variety: '', category: '', speciesType: 'SPECIES', locationId: '', note: '' });
+            await refreshAfterAction();
+          } catch (err) { showError(err); }
+        }
+
+        // 批次購買(清單式:同一趟可加入多種不同植物,逐一送出)
+        const purchaseForm = reactive({ seller: '', purchaseLocation: '', purchaseDate: '' });
+        const purchaseItemForm = reactive({ name: '', variety: '', category: '', locationId: '', unitPrice: 500, quantity: 1 });
+        const purchaseCart = ref([]);
+        const purchaseCartTotalQty = computed(() => purchaseCart.value.reduce((sum, item) => sum + item.quantity, 0));
+        const purchaseCartTotalPrice = computed(() => purchaseCart.value.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0));
+
+        function addPurchaseItem() {
+          if (!purchaseItemForm.name) { showToast('請輸入植物名稱', 'error'); return; }
+          if (purchaseItemForm.unitPrice === null || purchaseItemForm.unitPrice === undefined || purchaseItemForm.unitPrice < 0) {
+            showToast('請輸入正確的單價', 'error'); return;
+          }
+          if (!purchaseItemForm.quantity || purchaseItemForm.quantity < 1) { showToast('數量至少為 1', 'error'); return; }
+          purchaseCart.value.push({ ...purchaseItemForm });
+          playSfx('pop');
+          Object.assign(purchaseItemForm, { name: '', variety: '', category: '', locationId: '', unitPrice: 500, quantity: 1 });
+        }
+
+        async function submitPurchaseCart() {
+          if (purchaseCart.value.length === 0) return;
+          loading.purchase = true;
+          const failedItems = [];
+          let successCount = 0;
+          try {
+            for (const item of purchaseCart.value) {
+              try {
+                // eslint-disable-next-line no-await-in-loop
+                await apiFetch('/api/purchases', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    ...item,
+                    seller: purchaseForm.seller || undefined,
+                    purchaseLocation: purchaseForm.purchaseLocation || undefined,
+                    purchaseDate: purchaseForm.purchaseDate || undefined,
+                  }),
+                });
+                successCount += item.quantity;
+              } catch (err) {
+                failedItems.push(`${item.name}(${err.message})`);
+              }
+            }
+            if (failedItems.length === 0) {
+              showToast(`已進貨 ${successCount} 盆植物入庫！`);
+              closeModal('purchase');
+              purchaseCart.value = [];
+              Object.assign(purchaseForm, { seller: '', purchaseLocation: '', purchaseDate: '' });
+            } else {
+              showToast(`成功進貨 ${successCount} 盆,但 ${failedItems.length} 個品項失敗:${failedItems.join('、')}`, 'error');
+              purchaseCart.value = purchaseCart.value.filter((item) => failedItems.some((f) => f.startsWith(item.name)));
+            }
+            await refreshAfterAction();
+          } finally {
+            loading.purchase = false;
+          }
+        }
+
+        // 編輯
+        const editForm = reactive({ id: '', name: '', variety: '', category: '', speciesType: 'SPECIES', note: '' });
+        function openEditModal(plant) {
+          Object.assign(editForm, {
+            id: plant.id, name: plant.name, variety: plant.variety || '',
+            category: plant.category || '', speciesType: plant.speciesType || 'SPECIES', note: plant.note || '',
+          });
+          openModal('editPlant');
+        }
+        async function submitEditPlant() {
+          try {
+            const { id, ...body } = editForm;
+            await apiFetch(`/api/plants/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+            showToast('手札筆記已儲存');
+            closeModal('editPlant');
+            await refreshAfterAction();
+            if (modals.detail && activePlant.value.id === id) await viewDetail(id);
+          } catch (err) { showError(err); }
+        }
+
+        // 市價更新
+        const priceUpdateForm = reactive({ plantId: '', name: '', newPrice: 0, note: '' });
+        function openPriceModal(plant) {
+          Object.assign(priceUpdateForm, { plantId: plant.id, name: plant.name, newPrice: plant.currentPrice, note: '' });
+          openModal('priceUpdate');
+        }
+        async function submitPriceUpdate() {
+          try {
+            await apiFetch(`/api/plants/${priceUpdateForm.plantId}/price-history`, {
+              method: 'POST',
+              body: JSON.stringify({ price: priceUpdateForm.newPrice, note: priceUpdateForm.note }),
+            });
+            showToast('市價估值已校準');
+            closeModal('priceUpdate');
+            await refreshAfterAction();
+            if (modals.detail && activePlant.value.id === priceUpdateForm.plantId) await viewDetail(priceUpdateForm.plantId);
+          } catch (err) { showError(err); }
+        }
+
+        // 照片上傳
+        const pendingUploads = ref([]);
+        const photoNote = ref('');
+        function openPhotoUpload(plant) {
+          activePlant.value = plant;
+          pendingUploads.value = [];
+          photoNote.value = '';
+          openModal('photoUpload');
+        }
+        function addFiles(fileList) {
+          Array.from(fileList).forEach((file) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => pendingUploads.value.push({ file, preview: ev.target.result });
+            reader.readAsDataURL(file);
+          });
+        }
+        function handleFileSelect(e) { addFiles(e.target.files); }
+        function handleFileDrop(e) { addFiles(e.dataTransfer.files); }
+
+        async function submitPhotos() {
+          loading.upload = true;
+          try {
+            for (const item of pendingUploads.value) {
+              const form = new FormData();
+              form.append('photo', item.file);
+              if (photoNote.value) form.append('note', photoNote.value);
+              await apiFetch(`/api/plants/${activePlant.value.id}/photos`, { method: 'POST', body: form });
+            }
+            showToast(`已成功收錄 ${pendingUploads.value.length} 張寫真照！`);
+            closeModal('photoUpload');
+            if (modals.detail) await viewDetail(activePlant.value.id);
+            await reloadPlants();
+          } catch (err) { showError(err); }
+          finally { loading.upload = false; }
+        }
+
+        async function deletePhoto(photoId) {
+          try {
+            await apiFetch(`/api/photos/${photoId}`, { method: 'DELETE' });
+            activePhotos.value = activePhotos.value.filter((p) => p.id !== photoId);
+            showToast('照片已移除');
+            await reloadPlants();
+          } catch (err) { showError(err); }
+        }
+
+        // 刪除:後端不做關聯限制,子代個體本身會保留(只是清空與母株的關聯),
+        // 只有該植株自己的附屬記錄(照片/購買/市價/移動/出售/繁殖/澆水/事件)會被刪除。
+        async function deletePlant(plant) {
+          const confirmMsg =
+            `確定要自溫室手札中移除「${plant.name}」(${plant.code}) 嗎?\n\n` +
+            `此動作會刪除該植株自己的所有記錄(照片、購買、市價歷史、移動、出售、` +
+            `繁殖、澆水、生命歷程等),且無法復原。若此植株有子代,子代會保留,` +
+            `只是會失去與母株的關聯。`;
+          if (!window.confirm(confirmMsg)) return;
+
+          try {
+            await apiFetch(`/api/plants/${plant.id}`, { method: 'DELETE' });
+            showToast('已自手札中移除植物');
+            if (modals.detail && activePlant.value.id === plant.id) closeModal('detail');
+            await refreshAfterAction();
+          } catch (err) {
+            showError(err);
+          }
+        }
+
+        // 澆水
+        async function waterNow(plant) {
+          try {
+            await apiFetch(`/api/plants/${plant.id}/waterings`, { method: 'POST', body: JSON.stringify({}) });
+            showToast(`已記錄「${plant.name}」的澆水`);
+            playSfx('coin');
+            await reloadPlants();
+            if (modals.detail && activePlant.value.id === plant.id) {
+              const watering = await apiFetch(`/api/plants/${plant.id}/waterings`);
+              activeWaterings.value = watering.items;
+            }
+          } catch (err) { showError(err); }
+        }
+
+        // 移動
+        const moveForm = reactive({ toLocationId: '' });
+        function openMoveModal(plant) {
+          activePlant.value = plant;
+          moveForm.toLocationId = plant.locationId || (locations.value[0] && locations.value[0].id) || '';
+          openModal('move');
+        }
+        async function submitMove() {
+          try {
+            await apiFetch(`/api/plants/${activePlant.value.id}/movements`, {
+              method: 'POST', body: JSON.stringify({ toLocationId: moveForm.toLocationId }),
+            });
+            showToast('已搬移至新溫室位置');
+            closeModal('move');
+            await refreshAfterAction();
+          } catch (err) { showError(err); }
+        }
+
+        // 繁殖分盆
+        const propForm = reactive({ parentPlantId: '', method: '分株', offspringCount: 2 });
+        const propParentCodePreview = computed(() => {
+          const p = plants.value.find((pl) => pl.id === propForm.parentPlantId);
+          return p ? p.code : '(母株編號)';
+        });
+        const propParentDisplay = computed(() => {
+          const p = plants.value.find((pl) => pl.id === propForm.parentPlantId);
+          return p ? `${p.name}(${p.code})` : '(尚未選定母株)';
+        });
+        async function submitPropagation() {
+          if (!propForm.parentPlantId) { showToast('請選擇繁殖母株', 'error'); return; }
+          try {
+            const result = await apiFetch('/api/propagations', { method: 'POST', body: JSON.stringify({ ...propForm }) });
+            showToast(`分盆成功！誕生了 ${result.children.length} 盆新幼苗`);
+            closeModal('propagation');
+            await refreshAfterAction();
+          } catch (err) { showError(err); }
+        }
+
+        // 狀態流轉
+        const statusForm = reactive({ targetStatus: '成長中', salePrice: 0, giftRecipient: '', deathDate: '', harvestDate: '' });
+        function openStatusModal(plant) {
+          activePlant.value = plant;
+          Object.assign(statusForm, { targetStatus: plant.status, salePrice: plant.currentPrice, giftRecipient: '', deathDate: '', harvestDate: '' });
+          openModal('status');
+        }
+        async function submitStatusChange() {
+          const st = statusForm.targetStatus;
+          const plantId = activePlant.value.id;
+          try {
+            if (st === '出售') {
+              await apiFetch(`/api/plants/${plantId}/sale`, {
+                method: 'POST', body: JSON.stringify({ salePrice: statusForm.salePrice }),
+              });
+            } else if (st === '送人') {
+              if (!statusForm.giftRecipient) { showToast('請輸入受贈朋友姓名', 'error'); return; }
+              const existingNote = activePlant.value.note || '';
+              const noteAddition = `[結緣贈送：${statusForm.giftRecipient}]`;
+              await apiFetch(`/api/plants/${plantId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ note: existingNote ? existingNote + ' ' + noteAddition : noteAddition }),
+              });
+              await apiFetch(`/api/plants/${plantId}/status`, { method: 'PATCH', body: JSON.stringify({ status: '送人' }) });
+            } else if (st === '死亡') {
+              await apiFetch(`/api/plants/${plantId}/status`, {
+                method: 'PATCH', body: JSON.stringify({ status: '死亡', deathDate: statusForm.deathDate || undefined }),
+              });
+            } else if (st === '已採收') {
+              if (!statusForm.harvestDate) { showToast('請選擇採收日期', 'error'); return; }
+              await apiFetch(`/api/plants/${plantId}/status`, {
+                method: 'PATCH', body: JSON.stringify({ status: '已採收', harvestDate: statusForm.harvestDate }),
+              });
+            } else {
+              await apiFetch(`/api/plants/${plantId}/status`, { method: 'PATCH', body: JSON.stringify({ status: st }) });
+            }
+            showToast('生命狀態更新完成');
+            closeModal('status');
+            await refreshAfterAction();
+            if (modals.detail && activePlant.value.id === plantId) await viewDetail(plantId);
+          } catch (err) { showError(err); }
+        }
+
+        // 匯出報表
+        async function exportData() {
+          try {
+            const rows = await apiFetch('/api/export', { method: 'POST', body: JSON.stringify({ format: 'json' }) });
+            if (!rows || rows.length === 0) { showToast('手札目前無資料可供匯出', 'error'); return; }
+
+            const mapped = rows.map((r) => ({
+              個體編號: r.code,
+              植物名稱: r.name,
+              品種品系: r.variety,
+              當前狀態: r.status,
+              溫室位置: r.location,
+              購入成本: r.purchasePrice,
+              市價估值: r.currentPrice,
+              售出金額: r.salePrice,
+              實現收益: r.realizedProfit,
+              收錄時間: r.createdAt ? new Date(r.createdAt).toLocaleString('zh-TW', { hour12: false, timeZone: 'Asia/Taipei' }) : '',
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(mapped);
+            worksheet['!cols'] = [
+              { wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 10 }, { wch: 10 },
+              { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 20 },
+            ];
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, '溫室植物手札');
+
+            const filename = `溫室植物手札-${new Date().toISOString().slice(0, 10)}.xlsx`;
+            XLSX.writeFile(workbook, filename);
+            showToast('已匯出農場手札 Excel');
+          } catch (err) { showError(err); }
+        }
+
+        function openLightbox(photo) { lightboxPhoto.value = photo; }
+
+        onMounted(() => { autoLogin(); });
+
+        return {
+          auth, apiOrigin, toast, STATUS_LIST, loading, plants, locations, dashboard, showFinanceBreakdown, pagination, filters,
+          modals, activePlant, activePhotos, activePriceHistory, activeOffspring, activeTimeline, activeWaterings, lightboxPhoto,
+          soundEnabled, viewMode, guideCollapsed, activeModalTab, toggleSound, toggleGuide, playSfx,
+          autoLogin, reloadPlants, debouncedReload, viewDetail, openPropWithParent, formatDate, formatDateTime, formatEventContent,
+          isHolding, statusSlug, statusIcon, plantCoverUrl, terminalLabel, formatLastWatered, openModal, closeModal,
+          growingPlants, harvestedPlants, terminalPlants, handleLocationSelectChange,
+          newPlantForm, submitAddPlant,
+          purchaseForm, purchaseItemForm, purchaseCart, purchaseCartTotalQty, purchaseCartTotalPrice, addPurchaseItem, submitPurchaseCart,
+          editForm, openEditModal, submitEditPlant,
+          priceUpdateForm, openPriceModal, submitPriceUpdate,
+          pendingUploads, photoNote, openPhotoUpload, handleFileSelect, handleFileDrop, submitPhotos, deletePhoto, deletePlant, waterNow,
+          moveForm, openMoveModal, submitMove,
+          propForm, propParentCodePreview, propParentDisplay, submitPropagation,
+          statusForm, openStatusModal, submitStatusChange,
+          exportData, openLightbox,
+        };
+      }
+    });
+
+    // ============================================================
+    // plant-card 元件:像素農場風格卡片,供三個分區(種植中/已採收/已離庫)共用
+    // ============================================================
+    app.component('plant-card', {
+      props: {
+        plant: { type: Object, required: true },
+        isHolding: { type: Function, required: true },
+        statusSlug: { type: Function, required: true },
+        statusIcon: { type: Function, required: true },
+        coverUrl: { type: Function, required: true },
+        terminalLabel: { type: Function, required: true },
+        formatLastWatered: { type: Function, required: true },
+      },
+      emits: ['view-detail', 'edit', 'move', 'status', 'price', 'delete', 'water-now', 'propagate'],
+      template: `
+        <div class="pixel-card rounded-xl overflow-hidden flex flex-col group">
+
+          <div class="relative h-44 overflow-hidden cursor-pointer bg-[#eadecc] flex items-center justify-center border-b-2 border-[#5a3821]"
+               @click="$emit('view-detail', plant.id)">
+
+            <img v-if="coverUrl(plant)" :src="coverUrl(plant)" :alt="plant.name"
+                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
+            <div v-else class="text-[#a08264] flex flex-col items-center">
+              <i class="ph-thin ph-potted-plant text-5xl"></i>
+              <span class="text-[11px] mt-1 font-normal">尚無標本照</span>
+            </div>
+
+            <div class="absolute top-2.5 left-2.5">
+              <span :class="'status-badge-' + statusSlug(plant.status)" class="status-badge px-2 py-0.5 rounded-md text-[11px] font-bold font-pixel flex items-center gap-1 shadow-sm">
+                <i :class="statusIcon(plant.status)"></i>
+                <span>{{ plant.status }}</span>
+              </span>
+            </div>
+
+            <div class="absolute top-2.5 right-2.5">
+              <span v-if="plant.speciesType === 'HYBRID'" class="bg-amber-600 border border-amber-800 text-white font-pixel font-bold text-[10px] px-2 py-0.5 rounded-md shadow">
+                ★ 雜交種
+              </span>
+              <span v-else class="bg-[#386641] border border-emerald-900 text-emerald-100 font-pixel font-bold text-[10px] px-2 py-0.5 rounded-md">
+                原生種
+              </span>
+            </div>
+
+            <div class="absolute bottom-2 left-2">
+              <span class="bg-[#5c3a21]/90 text-amber-200 font-mono text-[10px] px-2 py-0.5 rounded border border-[#eed5b7]/40">
+                {{ plant.code }}
+              </span>
+            </div>
+
+            <div class="absolute bottom-2 right-2 flex items-center gap-1.5">
+              <button v-if="isHolding(plant.status)" @click.stop="$emit('propagate', plant)" title="以此株為母株繁殖分盆"
+                      class="w-6 h-6 rounded-lg bg-[#3a2211]/80 hover:bg-[#386641] text-white flex items-center justify-center transition-colors">
+                <i class="ph-bold ph-git-fork text-xs"></i>
+              </button>
+              <button @click.stop="$emit('delete', plant)" title="移除此植物(子代會保留,只會清空親緣關係)"
+                      class="w-6 h-6 rounded-lg bg-[#3a2211]/80 hover:bg-rose-700 text-white flex items-center justify-center transition-colors">
+                <i class="ph-bold ph-trash text-xs"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="p-3.5 flex-1 flex flex-col justify-between space-y-3">
+            <div>
+              <div class="flex items-start justify-between gap-1">
+                <div>
+                  <h3 class="font-bold text-[#3a2211] text-sm leading-tight group-hover:text-[#386641] transition-colors">{{ plant.name }}</h3>
+                  <p class="text-xs text-[#7f5539] mt-0.5 font-normal">{{ plant.variety || '標準品系' }} · {{ plant.category || '未分類' }}</p>
+                </div>
+                <span class="text-xs text-[#5c3a21] font-medium bg-[#f1e6d0] border border-[#dfcca9] px-2 py-0.5 rounded flex-shrink-0">
+                  <i class="ph-bold ph-map-pin mr-0.5 text-emerald-700"></i>{{ plant.location ? plant.location.name : '未分區' }}
+                </span>
+              </div>
+              <p v-if="plant.note" class="text-xs text-stone-600 mt-1.5 line-clamp-1 italic bg-[#f9f6ee] border border-[#eee4ce] px-2 py-1 rounded font-normal leading-relaxed">
+                "{{ plant.note }}"
+              </p>
+              <p v-if="plant.status === '已採收' && plant.harvestDate" class="text-xs text-amber-800 mt-1.5 bg-amber-50 border border-amber-200 px-2 py-1 rounded font-medium">
+                🧺 採收於 {{ new Date(plant.harvestDate).toLocaleDateString('zh-TW') }}
+              </p>
+            </div>
+
+            <!-- 澆水計數與快速澆水按鈕 -->
+            <div class="flex items-center justify-between bg-sky-50 px-2.5 py-1.5 rounded-lg border border-sky-200 text-xs">
+              <span class="text-sky-800 font-medium flex items-center gap-1">
+                <i class="ph-bold ph-drop"></i>
+                已澆水 {{ (plant._count && plant._count.waterings) || 0 }} 次 · {{ formatLastWatered(plant) }}
+              </span>
+              <button v-if="isHolding(plant.status)" @click.stop="$emit('water-now', plant)"
+                      class="text-sky-700 hover:text-sky-900 font-bold flex items-center gap-0.5">
+                <i class="ph-bold ph-plus"></i> 澆水
+              </button>
+            </div>
+
+            <div class="bg-[#f5eedc] p-2 rounded-xl border border-[#dfcca9] text-xs flex justify-between items-center">
+              <div>
+                <div class="text-[10px] text-stone-500 font-normal">進價成本</div>
+                <div class="font-bold font-pixel text-stone-800 text-sm">\${{ (plant.purchasePrice || 0).toLocaleString() }}</div>
+              </div>
+              <div class="text-right">
+                <div class="text-[10px] text-stone-500 flex items-center justify-end gap-1 font-normal">
+                  <span>當前估值</span>
+                  <button v-if="isHolding(plant.status)" @click.stop="$emit('price', plant)" title="調整估值" class="text-[#386641] hover:underline">
+                    <i class="ph-bold ph-pencil-simple"></i>
+                  </button>
+                </div>
+                <div class="font-bold font-pixel text-sm" :class="isHolding(plant.status) ? 'text-[#b45309]' : 'text-stone-400 line-through'">
+                  \${{ (plant.currentPrice || 0).toLocaleString() }}
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-[#dfcca9] flex items-center justify-between text-xs font-medium">
+              <button @click="$emit('edit', plant)" class="text-[#7f5539] hover:text-[#386641] flex items-center gap-0.5">
+                <i class="ph-bold ph-pencil"></i> 編輯
+              </button>
+              <button v-if="isHolding(plant.status)" @click="$emit('move', plant)" class="text-[#7f5539] hover:text-sky-700 flex items-center gap-0.5">
+                <i class="ph-bold ph-arrows-out-cardinal"></i> 移動
+              </button>
+              <button v-if="isHolding(plant.status)" @click="$emit('status', plant)" class="text-[#7f5539] hover:text-amber-800 flex items-center gap-0.5">
+                <i class="ph-bold ph-arrow-clockwise"></i> 狀態
+              </button>
+              <span v-else class="text-xs text-stone-400 italic font-normal">{{ terminalLabel(plant.status) }}</span>
+              <button @click="$emit('view-detail', plant.id)" class="text-[#386641] font-bold hover:underline flex items-center">
+                查看詳情 <i class="ph-bold ph-caret-right ml-0.5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      `,
+    });
+
+    app.mount('#app');
+  </script>
+</body>
+</html>

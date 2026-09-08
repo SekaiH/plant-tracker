@@ -1,0 +1,248 @@
+// 植況簿｜成員 B 資料庫 Schema
+// 對應《植況簿_成員B_後端開發完整規格書》第 3 章
+//
+// 正式環境使用 PostgreSQL。金額欄位維持 Float，之後如需更高精度可改為 Decimal(10,2)。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// 使用者（單一使用者情境，僅供登入驗證）
+// ─────────────────────────────────────────
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+// ─────────────────────────────────────────
+// 種植區域
+// ─────────────────────────────────────────
+model Location {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  plants        Plant[]
+  movementsFrom Movement[] @relation("MovementFrom")
+  movementsTo   Movement[] @relation("MovementTo")
+}
+
+// ─────────────────────────────────────────
+// 植物個體（核心資料表）
+// ─────────────────────────────────────────
+model Plant {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  name           String
+  variety        String?
+  category       String?
+  speciesType    String?
+  // status: 幼苗 / 成長中 / 成株 / 狀況不佳 / 死亡 / 出售 / 送人 / 已採收
+  status         String   @default("幼苗")
+  locationId     String?
+  location       Location? @relation(fields: [locationId], references: [id])
+  parentId       String?
+  // onDelete: SetNull — 刪除母株時，子代個體本身「保留」，只是子代的
+  // parentId 會被清空(親緣關係消失，但子代植株資料完整保留)。
+  // 這是刻意跟其他關聯（照片、購買、市價歷史等）不同的設計：那些是「屬於」
+  // 這株植物的附屬記錄，母株消失理應一併消失；但子代是「獨立的植物個體」，
+  // 不應該因為母株被刪除而連帶消失。
+  parent         Plant?   @relation("PlantParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Plant[]  @relation("PlantParent")
+  purchasePrice  Float?   @default(0)
+  currentPrice   Float?   @default(0)
+  deathDate      DateTime?
+  harvestDate    DateTime? // 採收日期，狀態切換為「已採收」時填寫
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  photos         Photo[]
+  movements      Movement[]
+  purchases      Purchase[]
+  priceHistories PriceHistory[]
+  sale           Sale?
+  propagations   Propagation[] @relation("ParentPropagations")
+  events         PlantEvent[]
+  waterings      Watering[]
+}
+
+// ─────────────────────────────────────────
+// 照片
+// ─────────────────────────────────────────
+model Photo {
+  id               String   @id @default(uuid())
+  plantId          String
+  plant            Plant    @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  url              String
+  takenAt          DateTime
+  statusSnapshot   String?
+  locationSnapshot String?
+  note             String?
+  createdAt        DateTime @default(now())
+}
+
+// ─────────────────────────────────────────
+// 移動紀錄
+// ─────────────────────────────────────────
+model Movement {
+  id             String    @id @default(uuid())
+  plantId        String
+  plant          Plant     @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  fromLocationId String?
+  fromLocation   Location? @relation("MovementFrom", fields: [fromLocationId], references: [id])
+  toLocationId   String
+  toLocation     Location  @relation("MovementTo", fields: [toLocationId], references: [id])
+  movedAt        DateTime
+  note           String?
+}
+
+// ─────────────────────────────────────────
+// 購買紀錄
+// ─────────────────────────────────────────
+model Purchase {
+  id               String   @id @default(uuid())
+  plantId          String
+  plant            Plant    @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  batchId          String?
+  unitPrice        Float
+  quantity         Int      @default(1)
+  totalPrice       Float
+  seller           String?
+  purchaseLocation String?
+  purchaseDate     DateTime
+  quality          String?
+  photoUrl         String?
+  note             String?
+}
+
+// ─────────────────────────────────────────
+// 市價歷史（只新增，不覆蓋刪除）
+// ─────────────────────────────────────────
+model PriceHistory {
+  id         String   @id @default(uuid())
+  plantId    String
+  plant      Plant    @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  price      Float
+  recordedAt DateTime
+  note       String?
+}
+
+// ─────────────────────────────────────────
+// 出售紀錄（一株植物僅一筆）
+// ─────────────────────────────────────────
+model Sale {
+  id             String   @id @default(uuid())
+  plantId        String   @unique
+  plant          Plant    @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  salePrice      Float
+  costBasis      Float
+  realizedProfit Float
+  saleDate       DateTime
+  buyer          String?
+  note           String?
+}
+
+// ─────────────────────────────────────────
+// 繁殖紀錄
+// ─────────────────────────────────────────
+model Propagation {
+  id              String   @id @default(uuid())
+  parentPlantId   String
+  parentPlant     Plant    @relation("ParentPropagations", fields: [parentPlantId], references: [id], onDelete: Cascade)
+  // method: 分株 / 扦插 / 播種 / 雜交
+  method          String
+  propagationDate DateTime
+  offspringCount  Int
+  note            String?
+}
+
+// ─────────────────────────────────────────
+// 生命歷程事件（供成員 C 聚合顯示使用）
+// ─────────────────────────────────────────
+model PlantEvent {
+  id        String   @id @default(uuid())
+  plantId   String
+  plant     Plant    @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  // eventType: 買入 / 拍照 / 移動 / 繁殖 / 市價更新 / 出售 / 死亡 / 送人 / 澆水 / 採收
+  eventType String
+  eventDate DateTime @default(now())
+  refTable  String?
+  refId     String?
+  content   String? // JSON 字串，例如 {"from":500,"to":900}
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────
+// 澆水紀錄(供澆水計數與「多久前澆過水」顯示使用)
+// ─────────────────────────────────────────
+model Watering {
+  id        String   @id @default(uuid())
+  plantId   String
+  plant     Plant    @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  wateredAt DateTime
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────
+// 資料匯出紀錄
+// ─────────────────────────────────────────
+model ExportLog {
+  id          String   @id @default(uuid())
+  exportedAt  DateTime @default(now())
+  // format: CSV / JSON
+  format      String
+  recordCount Int
+  operator    String?
+}
+
+// ─────────────────────────────────────────
+// 堆肥管理（獨立於植株追蹤；箱子本身可自由新增/刪除管理，
+// 不限定只有高溫箱／低溫箱兩種，預設會建立這兩個當範例）
+// ─────────────────────────────────────────
+model CompostBin {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  // type：高溫箱 / 低溫箱 —— 這是「分類」，跟 name(使用者自訂的箱子名稱，
+  // 如「三號箱」「後院堆肥桶」)分開存放，一個箱子可以叫任何名字，但一定要
+  // 歸類成高溫或低溫其中一種。
+  type      String
+  createdAt DateTime @default(now())
+}
+
+model CompostEntry {
+  id           String   @id @default(uuid())
+  // binType：對應 CompostBin.name(以名稱關聯而非外鍵 id，箱子改名時歷史紀錄仍可讀，
+  // 但箱子被刪除時，同名的加料紀錄會一併清除，見 compost.routes.js 的刪除邏輯）
+  binType      String
+  // entryType: material（一般加料）/ reset（開始新一批，之前的紀錄仍保留但不計入目前比例）
+  entryType    String   @default("material")
+  materialName String?
+  amountKg     Float?
+  // cnRatio：該材料的碳氮比（已知材料由後端參照表自動帶入；自訂材料則由使用者輸入）
+  cnRatio      Float?
+  note         String?
+  createdAt    DateTime @default(now())
+}
+
+// ─────────────────────────────────────────
+// 工具設備清單（獨立於植株追蹤，記錄園藝工具/耗材採購）
+// ─────────────────────────────────────────
+model Equipment {
+  id        String   @id @default(uuid())
+  name      String   // 項目，如「碳化花盆」
+  spec      String?  // 規格/數量，如「20個」「10kg」「1組」
+  price     Float    // 價格
+  source    String?  // 來源，如「拼多多」「丁（八角花市）」
+  note      String?  // 備註，如「換盆、定植」
+  createdAt DateTime @default(now())
+}

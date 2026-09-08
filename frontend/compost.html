@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🍂 堆肥管理 · 溫馨農場手札 - 植況簿</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Noto+Sans+TC:wght@400;500;700;900&family=VT323&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --farm-bg: #f5eedc;
+      --farm-wood: #53361e;
+      --farm-paper: #fffcf2;
+    }
+    [v-cloak] { display: none; }
+    body {
+      background-color: var(--farm-bg);
+      background-image:
+        radial-gradient(#dccbb0 1.2px, transparent 1.2px),
+        linear-gradient(to bottom, #f7f2e4, #eee4ce);
+      background-size: 16px 16px, 100% 100%;
+      background-attachment: fixed;
+      font-family: 'Noto Sans TC', sans-serif;
+      color: #3e2723;
+    }
+    .font-pixel { font-family: 'DotGothic16', 'VT323', monospace; }
+    .btn-wood {
+      background: linear-gradient(180deg, #9a633a 0%, #6f4222 100%);
+      border: 2px solid #3d2312;
+      box-shadow: 0 4px 0 #3d2312, 0 6px 6px rgba(0,0,0,0.15);
+      color: #fff9ed;
+      transition: all 0.08s steps(2);
+    }
+    .btn-wood:hover { background: linear-gradient(180deg, #a76d42 0%, #7d4b27 100%); transform: translateY(-1px); box-shadow: 0 5px 0 #3d2312, 0 7px 8px rgba(0,0,0,0.2); }
+    .btn-wood:active { transform: translateY(4px); box-shadow: 0 0 0 #3d2312, 0 2px 2px rgba(0,0,0,0.2); }
+    .btn-leaf {
+      background: linear-gradient(180deg, #588157 0%, #3a5a40 100%);
+      border: 2px solid #283618;
+      box-shadow: 0 4px 0 #283618, 0 6px 6px rgba(40,54,24,0.2);
+      color: #ffffff;
+      transition: all 0.08s steps(2);
+    }
+    .btn-leaf:hover { background: linear-gradient(180deg, #659264 0%, #43664a 100%); transform: translateY(-1px); box-shadow: 0 5px 0 #283618; }
+    .btn-leaf:active { transform: translateY(4px); box-shadow: 0 0 0 #283618; }
+    .btn-leaf:disabled { opacity: 0.5; transform: none; box-shadow: 0 4px 0 #283618, 0 6px 6px rgba(40,54,24,0.2); }
+    .pixel-card {
+      background: var(--farm-paper);
+      border: 3px solid #5a3821;
+      border-radius: 12px;
+      box-shadow: 0 6px 0 #d3bc9e, 0 10px 15px rgba(90,56,33,0.08);
+      position: relative;
+    }
+    .parchment-panel {
+      background: #fdfbf5;
+      border: 3px solid #6b4423;
+      border-radius: 14px;
+      box-shadow: inset 0 0 0 3px #dfcca9, 0 6px 0 #cbaf8b;
+    }
+    .ratio-good { background-color: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+    .ratio-too_high { background-color: #fef3c7; color: #b45309; border-color: #fde68a; }
+    .ratio-too_low { background-color: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+    .ratio-empty { background-color: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+  </style>
+</head>
+<body class="min-h-screen antialiased text-sm">
+  <div id="app" v-cloak class="flex flex-col min-h-screen">
+
+    <!-- 自動登入中 / 失敗畫面 -->
+    <div v-if="!auth.token" class="flex-1 flex items-center justify-center p-4">
+      <div class="parchment-panel max-w-sm w-full p-8 text-center">
+        <div class="w-16 h-16 rounded-2xl bg-[#53361e] border-2 border-[#3d2312] text-amber-200 flex items-center justify-center mx-auto shadow-md mb-4">
+          <i class="ph-bold ph-recycle text-3xl"></i>
+        </div>
+        <h1 class="text-2xl font-bold tracking-wide text-[#432818] font-pixel">堆肥小屋</h1>
+        <p class="text-xs text-[#7f5539] mt-1 mb-6 font-medium">🍂 正在翻閱堆肥記事本...</p>
+
+        <div v-if="auth.loading" class="text-emerald-700 text-sm font-medium flex items-center justify-center gap-2 py-4">
+          <i class="ph-bold ph-spinner-gap animate-spin text-lg"></i> 開啟小屋大門中...
+        </div>
+        <div v-else-if="auth.error" class="space-y-4">
+          <div class="text-xs text-rose-800 bg-rose-100 border-2 border-rose-300 rounded-xl p-3 text-left">
+            <p class="font-bold flex items-center gap-1 mb-1"><i class="ph-bold ph-warning-circle"></i> 連線驗證失敗</p>
+            <p class="font-mono text-[11px]">{{ auth.error }}</p>
+          </div>
+          <button @click="autoLogin" class="w-full py-2.5 btn-leaf font-pixel font-bold text-sm rounded-xl">重新連線</button>
+        </div>
+      </div>
+    </div>
+
+    <template v-else>
+      <div v-if="toast.message" class="fixed top-5 right-5 z-[100] max-w-sm">
+        <div :class="toast.type === 'error' ? 'bg-[#ffeedd] border-rose-700 text-rose-900' : 'bg-[#f4fce8] border-emerald-800 text-emerald-950'"
+             class="text-xs px-4 py-3 rounded-xl border-2 shadow-xl flex items-start gap-2.5 font-medium">
+          <i :class="toast.type === 'error' ? 'ph-fill ph-bell-ringing' : 'ph-fill ph-check-circle'" class="text-base mt-0.5 flex-shrink-0"></i>
+          <span class="flex-1 leading-relaxed">{{ toast.message }}</span>
+          <button @click="toast.message = ''" class="text-stone-500 hover:text-black"><i class="ph-bold ph-x"></i></button>
+        </div>
+      </div>
+
+      <header class="bg-[#5c3a21] border-b-4 border-[#3a2211] sticky top-0 z-30 shadow-md">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-[#8c5832] border-2 border-[#eed5b7] text-amber-100 flex items-center justify-center shadow-inner">
+              <i class="ph-bold ph-recycle text-2xl"></i>
+            </div>
+            <span class="text-xl font-bold tracking-wider text-[#faedcd] font-pixel">堆肥小屋</span>
+          </div>
+          <a href="index.html" class="text-xs font-bold text-amber-100 hover:text-white flex items-center gap-1 bg-[#7c4f2c] hover:bg-[#8c5a34] border-2 border-[#3d2312] px-3 py-1.5 rounded-xl transition-colors">
+            <i class="ph-bold ph-arrow-left"></i> 回植況簿
+          </a>
+        </div>
+      </header>
+
+      <main class="flex-1 max-w-4xl mx-auto px-4 sm:px-6 py-6 w-full space-y-5">
+
+        <!-- 箱子清單(動態管理,不限於高溫箱/低溫箱兩種) -->
+        <div class="flex flex-wrap gap-2 items-center">
+          <button v-for="bin in bins" :key="bin.id"
+                  @click="switchBin(bin.name)"
+                  :class="activeBin === bin.name ? 'btn-leaf' : 'bg-white text-[#5c3a21] border-2 border-[#dfcca9] hover:border-[#8c5832]'"
+                  class="px-4 py-2 rounded-xl font-pixel font-bold text-sm flex items-center gap-1.5 transition-colors group relative">
+            <i :class="bin.type === '高溫箱' ? 'ph-bold ph-fire' : 'ph-bold ph-snowflake'"></i> {{ bin.name }}
+            <span @click.stop="removeBin(bin)" title="刪除這個箱子"
+                  class="ml-1 opacity-0 group-hover:opacity-100 hover:text-rose-300 transition-opacity">
+              <i class="ph-bold ph-x-circle"></i>
+            </span>
+          </button>
+          <button @click="openAddBinModal" class="px-3 py-2 rounded-xl border-2 border-dashed border-[#a08264] text-[#7f5539] hover:border-[#8c5832] hover:text-[#5c3a21] text-sm font-bold flex items-center gap-1">
+            <i class="ph-bold ph-plus"></i> 新增箱子
+          </button>
+        </div>
+
+        <div v-if="loading.bins || (loading.summary && !summary)" class="text-center py-16">
+          <i class="ph-bold ph-spinner-gap text-3xl text-[#588157] animate-spin"></i>
+        </div>
+
+        <div v-else-if="bins.length === 0" class="text-center py-16 parchment-panel">
+          <p class="text-3xl mb-1">🗑️</p>
+          <p class="text-[#7f5539] text-xs font-medium">還沒有任何堆肥箱,點上面「新增箱子」開始記錄吧</p>
+        </div>
+
+        <template v-else-if="summary">
+          <!-- 目前狀態卡片 -->
+          <section class="pixel-card p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <h2 class="font-bold text-[#3a2211] font-pixel flex items-center gap-1.5">
+                <i class="ph-bold ph-chart-pie text-[#386641]"></i> {{ activeBin }} 目前狀態
+              </h2>
+              <button @click="confirmReset" class="text-xs text-[#7f5539] hover:text-rose-700 flex items-center gap-1 font-medium">
+                <i class="ph-bold ph-arrow-clockwise"></i> 開始新一批
+              </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-[#f5eedc] rounded-xl p-3 border border-[#dfcca9]">
+                <div class="text-xs text-stone-500 font-normal">累積重量</div>
+                <div class="text-2xl font-black font-pixel text-[#3a2211]">{{ (summary.totalWeightKg || 0).toFixed(1) }} <span class="text-xs font-normal text-stone-500 font-sans">kg</span></div>
+              </div>
+              <div class="bg-[#f5eedc] rounded-xl p-3 border border-[#dfcca9]">
+                <div class="text-xs text-stone-500 font-normal">目前碳氮比</div>
+                <div class="text-2xl font-black font-pixel text-[#b45309]">
+                  {{ summary.currentRatio ? summary.currentRatio.toFixed(1) + ' : 1' : '—' }}
+                </div>
+              </div>
+            </div>
+
+            <div v-if="summary.suggestion" :class="'ratio-' + summary.suggestion.status"
+                 class="rounded-xl border-2 p-3 text-sm flex items-start gap-2 font-medium">
+              <i :class="suggestionIcon(summary.suggestion.status)" class="text-lg mt-0.5"></i>
+              <span>{{ summary.suggestion.message }}</span>
+            </div>
+
+            <p v-if="summary.batchStartedAt" class="text-[11px] text-stone-500 font-normal">
+              本批次開始於 {{ formatDate(summary.batchStartedAt) }}
+            </p>
+          </section>
+
+          <!-- 加料表單 -->
+          <section class="pixel-card p-5 space-y-3 bg-[#f4fce8]">
+            <h2 class="font-bold text-[#386641] font-pixel flex items-center gap-1.5">
+              <i class="ph-bold ph-plus-circle"></i> 新增加料紀錄
+            </h2>
+            <div>
+              <label class="block text-xs font-bold text-[#5c3a21] mb-1">材料</label>
+              <select v-model="entryForm.materialName" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl text-sm">
+                <optgroup label="含碳(棕色)材料">
+                  <option v-for="m in carbonMaterials" :key="m.name" :value="m.name">{{ m.name }}(約 {{ m.cnRatio }}:1)</option>
+                </optgroup>
+                <optgroup label="含氮(綠色)材料">
+                  <option v-for="m in nitrogenMaterials" :key="m.name" :value="m.name">{{ m.name }}(約 {{ m.cnRatio }}:1)</option>
+                </optgroup>
+                <option value="__custom__">其他(自訂材料,需自行輸入碳氮比)</option>
+              </select>
+            </div>
+
+            <div v-if="entryForm.materialName === '__custom__'" class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-bold text-[#5c3a21] mb-1">自訂材料名稱</label>
+                <input v-model.trim="entryForm.customName" placeholder="如：椰纖" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-[#5c3a21] mb-1">估計碳氮比(C:N)</label>
+                <input v-model.number="entryForm.customCnRatio" type="number" min="1" placeholder="如：30" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl text-sm font-pixel" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-[#5c3a21] mb-1">份量(公斤) *</label>
+              <input v-model.number="entryForm.amountKg" type="number" min="0" step="0.1" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl text-sm font-pixel" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-[#5c3a21] mb-1">備註</label>
+              <input v-model.trim="entryForm.note" placeholder="選填" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl text-sm" />
+            </div>
+
+            <button @click="submitEntry" :disabled="loading.submit"
+                    class="w-full py-2.5 btn-leaf font-bold font-pixel rounded-xl flex items-center justify-center gap-1.5">
+              <i class="ph-bold ph-plus"></i> {{ loading.submit ? '記錄中...' : '記錄這筆加料' }}
+            </button>
+          </section>
+
+          <!-- 加料時間軸 -->
+          <section class="pixel-card p-5">
+            <h2 class="font-bold text-[#3a2211] font-pixel mb-3 flex items-center gap-1.5">
+              <i class="ph-bold ph-clock-counter-clockwise text-[#386641]"></i> 加料時間軸(本批次共 {{ summary.timeline.length }} 筆)
+            </h2>
+            <div v-if="summary.timeline.length === 0" class="text-center py-8 text-stone-400 text-sm font-normal">
+              這一批還沒有加料紀錄
+            </div>
+            <div v-else class="relative pl-6 border-l-2 border-[#dfcca9] space-y-4">
+              <div v-for="entry in [...summary.timeline].reverse()" :key="entry.id" class="relative">
+                <div class="absolute -left-[31px] top-0.5 w-3.5 h-3.5 rounded-full bg-[#386641] border-2 border-white shadow-sm"></div>
+                <div class="flex items-center justify-between text-xs text-stone-500 mb-0.5 font-normal">
+                  <span>{{ formatDate(entry.createdAt) }}</span>
+                  <button @click="deleteEntry(entry.id)" class="text-stone-300 hover:text-rose-500"><i class="ph-bold ph-trash"></i></button>
+                </div>
+                <div class="text-sm text-stone-700 font-normal">
+                  <strong class="text-[#3a2211]">{{ entry.materialName }}</strong> {{ entry.amountKg }} kg(約 {{ entry.cnRatio }}:1)
+                  <span v-if="entry.note" class="text-stone-400"> · {{ entry.note }}</span>
+                </div>
+                <div v-if="entry.ratioAfterThisEntry" class="text-xs text-[#386641] mt-0.5 font-medium">
+                  → 累積至此比例約 {{ entry.ratioAfterThisEntry.toFixed(1) }}:1
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <p class="text-[11px] text-stone-500 text-center px-4 font-normal">
+            碳氮比為概略估算值,假設所有材料碳含量約為乾重 50%,實際比例會因材料新鮮度、
+            含水量而有落差,僅供居家堆肥抓大方向參考。
+          </p>
+        </template>
+      </main>
+
+      <!-- 新增箱子彈窗:名稱自訂,類型必須選高溫或低溫其中一種 -->
+      <div v-if="modals.addBin" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+        <div class="parchment-panel max-w-sm w-full p-6 space-y-4">
+          <h3 class="font-bold text-[#3a2211] font-pixel flex items-center gap-2 text-sm">
+            <i class="ph-bold ph-package text-[#386641]"></i> 新增堆肥箱
+          </h3>
+          <div>
+            <label class="block text-xs font-bold text-[#5c3a21] mb-1">箱子名稱 *</label>
+            <input v-model.trim="newBinForm.name" @keyup.enter="submitAddBin"
+                   placeholder="如：三號箱、後院堆肥桶" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-[#5c3a21] mb-1">箱子類型 *</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button @click="newBinForm.type = '高溫箱'"
+                      :class="newBinForm.type === '高溫箱' ? 'btn-leaf' : 'bg-white border-2 border-[#dfcca9] text-[#5c3a21] hover:border-[#8c5832]'"
+                      class="py-2.5 rounded-xl font-bold font-pixel text-sm flex items-center justify-center gap-1.5 transition-colors">
+                <i class="ph-bold ph-fire"></i> 高溫箱
+              </button>
+              <button @click="newBinForm.type = '低溫箱'"
+                      :class="newBinForm.type === '低溫箱' ? 'btn-leaf' : 'bg-white border-2 border-[#dfcca9] text-[#5c3a21] hover:border-[#8c5832]'"
+                      class="py-2.5 rounded-xl font-bold font-pixel text-sm flex items-center justify-center gap-1.5 transition-colors">
+                <i class="ph-bold ph-snowflake"></i> 低溫箱
+              </button>
+            </div>
+          </div>
+          <p class="text-[11px] text-stone-500 font-normal">
+            名稱可以自己取(例如「三號箱」),類型是用來分類這個箱子是高溫堆肥還是低溫堆肥。
+          </p>
+          <div class="flex justify-end gap-2 pt-1">
+            <button @click="closeAddBinModal" class="px-4 py-2 btn-wood rounded-xl font-bold font-pixel text-sm">取消</button>
+            <button @click="submitAddBin" class="px-4 py-2 btn-leaf rounded-xl font-bold font-pixel text-sm">確認新增</button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <script>
+    const { createApp, ref, reactive, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const PRODUCTION_API_BASE = '';
+        const DEFAULT_CREDENTIALS = { username: 'owner', password: 'changeme123' };
+
+        const auth = reactive({
+          apiBase:
+            localStorage.getItem('pt_api_base') ||
+            PRODUCTION_API_BASE ||
+            `${window.location.protocol}//${window.location.hostname}:4000`,
+          token: localStorage.getItem('pt_token') || '',
+          loading: false,
+          error: '',
+        });
+        const apiOrigin = computed(() => auth.apiBase.replace(/\/$/, ''));
+
+        async function apiFetch(path, options = {}) {
+          const url = apiOrigin.value + path;
+          const headers = { ...(options.headers || {}) };
+          if (auth.token) headers['Authorization'] = 'Bearer ' + auth.token;
+          if (options.body) headers['Content-Type'] = 'application/json';
+          const res = await fetch(url, { ...options, headers });
+          if (res.status === 204) return null;
+          let data = null;
+          try { data = await res.json(); } catch (e) {}
+          if (!res.ok) {
+            const code = data && data.error ? data.error.code : 'UNKNOWN_ERROR';
+            const message = data && data.error ? data.error.message : `HTTP ${res.status}`;
+            const err = new Error(message);
+            err.code = code; err.status = res.status;
+            throw err;
+          }
+          return data;
+        }
+
+        async function autoLogin() {
+          if (auth.token) return bootstrap();
+          auth.loading = true; auth.error = '';
+          try {
+            const data = await apiFetch('/api/auth/login', { method: 'POST', body: JSON.stringify(DEFAULT_CREDENTIALS) });
+            auth.token = data.token;
+            localStorage.setItem('pt_token', data.token);
+            localStorage.setItem('pt_api_base', auth.apiBase);
+            await bootstrap();
+          } catch (err) {
+            auth.error = err.message || '自動登入失敗';
+          } finally {
+            auth.loading = false;
+          }
+        }
+
+        const toast = reactive({ message: '', type: 'info' });
+        function showToast(message, type = 'info') {
+          toast.message = message; toast.type = type;
+          setTimeout(() => { if (toast.message === message) toast.message = ''; }, 4000);
+        }
+        function showError(err) { showToast(`${err.code ? '[' + err.code + '] ' : ''}${err.message}`, 'error'); }
+
+        const loading = reactive({ bins: false, summary: false, submit: false });
+        const modals = reactive({ addBin: false });
+        const newBinForm = reactive({ name: '', type: '高溫箱' });
+        const bins = ref([]); // [{ id, name, type, createdAt }]
+        const activeBin = ref('');
+        const summary = ref(null);
+        const materials = ref([]);
+        const carbonMaterials = computed(() => materials.value.filter((m) => m.category === '含碳(棕色)'));
+        const nitrogenMaterials = computed(() => materials.value.filter((m) => m.category === '含氮(綠色)'));
+
+        const entryForm = reactive({ materialName: '', customName: '', customCnRatio: '', amountKg: 1, note: '' });
+
+        function suggestionIcon(status) {
+          return {
+            good: 'ph-bold ph-check-circle',
+            too_high: 'ph-bold ph-warning',
+            too_low: 'ph-bold ph-warning',
+            empty: 'ph-bold ph-info',
+          }[status] || 'ph-bold ph-info';
+        }
+
+        function formatDate(d) {
+          if (!d) return '';
+          return new Date(d).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
+        }
+
+        async function loadMaterials() {
+          materials.value = await apiFetch('/api/compost/materials');
+        }
+
+        // 箱子清單:預設的高溫箱／低溫箱只在後端 npm run seed 時建立一次;
+        // 如果使用者把箱子全部刪光,這裡就會如實回傳空陣列,不會自動補回來。
+        async function loadBins() {
+          loading.bins = true;
+          try {
+            bins.value = await apiFetch('/api/compost/bins');
+            if (bins.value.length > 0 && !bins.value.some((b) => b.name === activeBin.value)) {
+              activeBin.value = bins.value[0].name;
+            }
+          } catch (err) {
+            showError(err);
+          } finally {
+            loading.bins = false;
+          }
+        }
+
+        async function loadSummary() {
+          if (!activeBin.value) { summary.value = null; return; }
+          loading.summary = true;
+          try {
+            summary.value = await apiFetch(`/api/compost/${encodeURIComponent(activeBin.value)}/summary`);
+          } catch (err) {
+            showError(err);
+          } finally {
+            loading.summary = false;
+          }
+        }
+
+        function switchBin(binName) {
+          activeBin.value = binName;
+          loadSummary();
+        }
+
+        function openAddBinModal() {
+          Object.assign(newBinForm, { name: '', type: '高溫箱' });
+          modals.addBin = true;
+        }
+        function closeAddBinModal() {
+          modals.addBin = false;
+        }
+        async function submitAddBin() {
+          if (!newBinForm.name) { showToast('請輸入箱子名稱', 'error'); return; }
+          try {
+            const bin = await apiFetch('/api/compost/bins', {
+              method: 'POST',
+              body: JSON.stringify({ name: newBinForm.name, type: newBinForm.type }),
+            });
+            showToast(`已新增箱子「${bin.name}」`);
+            closeAddBinModal();
+            await loadBins();
+            switchBin(bin.name);
+          } catch (err) { showError(err); }
+        }
+
+        async function removeBin(bin) {
+          if (!window.confirm(`確定要刪除「${bin.name}」嗎?\n\n這個箱子底下所有加料紀錄會一併刪除,且無法復原。`)) return;
+          try {
+            await apiFetch(`/api/compost/bins/${bin.id}`, { method: 'DELETE' });
+            showToast(`已刪除「${bin.name}」`);
+            await loadBins();
+            if (activeBin.value === bin.name) {
+              activeBin.value = bins.value.length > 0 ? bins.value[0].name : '';
+            }
+            await loadSummary();
+          } catch (err) { showError(err); }
+        }
+
+        async function submitEntry() {
+          const isCustom = entryForm.materialName === '__custom__';
+          const materialName = isCustom ? entryForm.customName : entryForm.materialName;
+
+          if (!materialName) { showToast('請選擇或輸入材料名稱', 'error'); return; }
+          if (!entryForm.amountKg || entryForm.amountKg <= 0) { showToast('請輸入正確的份量', 'error'); return; }
+          if (isCustom && (!entryForm.customCnRatio || entryForm.customCnRatio <= 0)) {
+            showToast('自訂材料請輸入估計的碳氮比', 'error'); return;
+          }
+
+          loading.submit = true;
+          try {
+            await apiFetch(`/api/compost/${encodeURIComponent(activeBin.value)}/entries`, {
+              method: 'POST',
+              body: JSON.stringify({
+                materialName,
+                amountKg: entryForm.amountKg,
+                cnRatio: isCustom ? entryForm.customCnRatio : undefined,
+                note: entryForm.note || undefined,
+              }),
+            });
+            showToast('已記錄這筆加料');
+            Object.assign(entryForm, { materialName: '', customName: '', customCnRatio: '', amountKg: 1, note: '' });
+            await loadSummary();
+          } catch (err) {
+            showError(err);
+          } finally {
+            loading.submit = false;
+          }
+        }
+
+        async function confirmReset() {
+          if (!window.confirm(`確定要幫「${activeBin.value}」開始新一批嗎?\n\n之前的紀錄仍會保留可回頭查閱,但目前比例計算會歸零重新開始。`)) return;
+          try {
+            await apiFetch(`/api/compost/${encodeURIComponent(activeBin.value)}/reset`, { method: 'POST', body: JSON.stringify({}) });
+            showToast('已開始新一批');
+            await loadSummary();
+          } catch (err) { showError(err); }
+        }
+
+        async function deleteEntry(entryId) {
+          if (!window.confirm('確定要刪除這筆加料紀錄嗎?')) return;
+          try {
+            await apiFetch(`/api/compost/entries/${entryId}`, { method: 'DELETE' });
+            showToast('已刪除');
+            await loadSummary();
+          } catch (err) { showError(err); }
+        }
+
+        async function bootstrap() {
+          try {
+            await loadBins();
+            await Promise.all([loadMaterials(), loadSummary()]);
+          } catch (err) {
+            if (err.status === 401) {
+              auth.token = ''; localStorage.removeItem('pt_token');
+              return autoLogin();
+            }
+            showError(err);
+          }
+        }
+
+        onMounted(() => { autoLogin(); });
+
+        return {
+          auth, toast, loading, modals, newBinForm, bins, activeBin, summary, materials,
+          carbonMaterials, nitrogenMaterials, entryForm,
+          suggestionIcon, formatDate, switchBin, openAddBinModal, closeAddBinModal, submitAddBin, removeBin,
+          submitEntry, confirmReset, deleteEntry, autoLogin,
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

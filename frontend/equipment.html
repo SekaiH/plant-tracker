@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🛠️ 工具設備 · 溫馨農場手札 - 植況簿</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Noto+Sans+TC:wght@400;500;700;900&family=VT323&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --farm-bg: #f5eedc;
+      --farm-wood: #53361e;
+      --farm-paper: #fffcf2;
+    }
+    [v-cloak] { display: none; }
+    body {
+      background-color: var(--farm-bg);
+      background-image:
+        radial-gradient(#dccbb0 1.2px, transparent 1.2px),
+        linear-gradient(to bottom, #f7f2e4, #eee4ce);
+      background-size: 16px 16px, 100% 100%;
+      background-attachment: fixed;
+      font-family: 'Noto Sans TC', sans-serif;
+      color: #3e2723;
+    }
+    .font-pixel { font-family: 'DotGothic16', 'VT323', monospace; }
+    .btn-wood {
+      background: linear-gradient(180deg, #9a633a 0%, #6f4222 100%);
+      border: 2px solid #3d2312;
+      box-shadow: 0 4px 0 #3d2312, 0 6px 6px rgba(0,0,0,0.15);
+      color: #fff9ed;
+      transition: all 0.08s steps(2);
+    }
+    .btn-wood:hover { background: linear-gradient(180deg, #a76d42 0%, #7d4b27 100%); transform: translateY(-1px); box-shadow: 0 5px 0 #3d2312, 0 7px 8px rgba(0,0,0,0.2); }
+    .btn-wood:active { transform: translateY(4px); box-shadow: 0 0 0 #3d2312, 0 2px 2px rgba(0,0,0,0.2); }
+    .btn-leaf {
+      background: linear-gradient(180deg, #588157 0%, #3a5a40 100%);
+      border: 2px solid #283618;
+      box-shadow: 0 4px 0 #283618, 0 6px 6px rgba(40,54,24,0.2);
+      color: #ffffff;
+      transition: all 0.08s steps(2);
+    }
+    .btn-leaf:hover { background: linear-gradient(180deg, #659264 0%, #43664a 100%); transform: translateY(-1px); box-shadow: 0 5px 0 #283618; }
+    .btn-leaf:active { transform: translateY(4px); box-shadow: 0 0 0 #283618; }
+    .btn-leaf:disabled { opacity: 0.5; transform: none; box-shadow: 0 4px 0 #283618, 0 6px 6px rgba(40,54,24,0.2); }
+    .pixel-card {
+      background: var(--farm-paper);
+      border: 3px solid #5a3821;
+      border-radius: 12px;
+      box-shadow: 0 6px 0 #d3bc9e, 0 10px 15px rgba(90,56,33,0.08);
+      position: relative;
+    }
+    .parchment-panel {
+      background: #fdfbf5;
+      border: 3px solid #6b4423;
+      border-radius: 14px;
+      box-shadow: inset 0 0 0 3px #dfcca9, 0 6px 0 #cbaf8b;
+    }
+  </style>
+</head>
+<body class="min-h-screen antialiased text-sm">
+  <div id="app" v-cloak class="flex flex-col min-h-screen">
+
+    <!-- 自動登入中 / 失敗畫面 -->
+    <div v-if="!auth.token" class="flex-1 flex items-center justify-center p-4">
+      <div class="parchment-panel max-w-sm w-full p-8 text-center">
+        <div class="w-16 h-16 rounded-2xl bg-[#53361e] border-2 border-[#3d2312] text-amber-200 flex items-center justify-center mx-auto shadow-md mb-4">
+          <i class="ph-bold ph-wrench text-3xl"></i>
+        </div>
+        <h1 class="text-2xl font-bold tracking-wide text-[#432818] font-pixel">工具倉庫</h1>
+        <p class="text-xs text-[#7f5539] mt-1 mb-6 font-medium">🛠️ 正在整理工具棚...</p>
+
+        <div v-if="auth.loading" class="text-emerald-700 text-sm font-medium flex items-center justify-center gap-2 py-4">
+          <i class="ph-bold ph-spinner-gap animate-spin text-lg"></i> 開啟倉庫大門中...
+        </div>
+        <div v-else-if="auth.error" class="space-y-4">
+          <div class="text-xs text-rose-800 bg-rose-100 border-2 border-rose-300 rounded-xl p-3 text-left">
+            <p class="font-bold flex items-center gap-1 mb-1"><i class="ph-bold ph-warning-circle"></i> 連線驗證失敗</p>
+            <p class="font-mono text-[11px]">{{ auth.error }}</p>
+          </div>
+          <button @click="autoLogin" class="w-full py-2.5 btn-leaf font-pixel font-bold text-sm rounded-xl">重新連線</button>
+        </div>
+      </div>
+    </div>
+
+    <template v-else>
+      <div v-if="toast.message" class="fixed top-5 right-5 z-[100] max-w-sm">
+        <div :class="toast.type === 'error' ? 'bg-[#ffeedd] border-rose-700 text-rose-900' : 'bg-[#f4fce8] border-emerald-800 text-emerald-950'"
+             class="text-xs px-4 py-3 rounded-xl border-2 shadow-xl flex items-start gap-2.5 font-medium">
+          <i :class="toast.type === 'error' ? 'ph-fill ph-bell-ringing' : 'ph-fill ph-check-circle'" class="text-base mt-0.5 flex-shrink-0"></i>
+          <span class="flex-1 leading-relaxed">{{ toast.message }}</span>
+          <button @click="toast.message = ''" class="text-stone-500 hover:text-black"><i class="ph-bold ph-x"></i></button>
+        </div>
+      </div>
+
+      <header class="bg-[#5c3a21] border-b-4 border-[#3a2211] sticky top-0 z-30 shadow-md">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-[#8c5832] border-2 border-[#eed5b7] text-amber-100 flex items-center justify-center shadow-inner">
+              <i class="ph-bold ph-wrench text-2xl"></i>
+            </div>
+            <span class="text-xl font-bold tracking-wider text-[#faedcd] font-pixel">工具倉庫</span>
+          </div>
+          <a href="index.html" class="text-xs font-bold text-amber-100 hover:text-white flex items-center gap-1 bg-[#7c4f2c] hover:bg-[#8c5a34] border-2 border-[#3d2312] px-3 py-1.5 rounded-xl transition-colors">
+            <i class="ph-bold ph-arrow-left"></i> 回植況簿
+          </a>
+        </div>
+      </header>
+
+      <main class="flex-1 max-w-5xl mx-auto px-4 sm:px-6 py-6 w-full space-y-5">
+
+        <!-- 總花費卡片 -->
+        <section class="pixel-card p-5 flex items-center gap-3">
+          <div class="w-11 h-11 rounded-xl bg-amber-100 border-2 border-amber-300 text-amber-700 flex items-center justify-center text-2xl flex-shrink-0">
+            🧰
+          </div>
+          <div>
+            <div class="text-xs font-bold text-[#5c3a21]">工具設備總花費</div>
+            <div class="text-2xl font-black font-pixel text-[#b45309]">${{ totalCost.toLocaleString() }} <span class="text-xs font-normal text-stone-500 font-sans">元</span></div>
+            <div class="text-[11px] text-stone-500 font-normal">共 {{ items.length }} 項</div>
+          </div>
+        </section>
+
+        <!-- 新增品項表單 -->
+        <section class="pixel-card p-5 space-y-3 bg-[#f4fce8]">
+          <h2 class="font-bold text-[#386641] font-pixel flex items-center gap-1.5">
+            <i class="ph-bold ph-plus-circle"></i> 新增工具設備
+          </h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-xs font-bold text-[#5c3a21] mb-1">項目 *</label>
+              <input v-model.trim="form.name" placeholder="如：碳化花盆" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-[#5c3a21] mb-1">規格/數量</label>
+              <input v-model.trim="form.spec" placeholder="如：20個、10kg、1組" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-[#5c3a21] mb-1">價格 *</label>
+              <input v-model.number="form.price" type="number" min="0" placeholder="如：1244" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl text-sm font-pixel" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-[#5c3a21] mb-1">來源</label>
+              <input v-model.trim="form.source" placeholder="如：拼多多、丁（八角花市）" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl text-sm" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-bold text-[#5c3a21] mb-1">備註</label>
+              <input v-model.trim="form.note" placeholder="如：換盆、定植" class="w-full p-2.5 bg-white border-2 border-[#dfcca9] rounded-xl text-sm" />
+            </div>
+          </div>
+          <button @click="submitItem" :disabled="loading.submit"
+                  class="w-full py-2.5 btn-leaf font-bold font-pixel rounded-xl flex items-center justify-center gap-1.5">
+            <i class="ph-bold ph-plus"></i> {{ loading.submit ? '新增中...' : '加入清單' }}
+          </button>
+        </section>
+
+        <!-- 工具設備清單 -->
+        <section class="parchment-panel overflow-hidden">
+          <div v-if="loading.list" class="text-center py-16">
+            <i class="ph-bold ph-spinner-gap text-3xl text-[#588157] animate-spin"></i>
+          </div>
+          <div v-else-if="items.length === 0" class="text-center py-16">
+            <p class="text-3xl mb-1">🧰</p>
+            <p class="text-[#7f5539] text-xs font-medium">還沒有任何工具設備紀錄</p>
+          </div>
+          <div v-else class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-[#ecdcc5] border-b-2 border-[#dfcca9] text-[#5c3a21] font-bold">
+                <tr>
+                  <th class="p-3 font-pixel w-12">編號</th>
+                  <th class="p-3">項目</th>
+                  <th class="p-3">規格/數量</th>
+                  <th class="p-3 text-right">價格</th>
+                  <th class="p-3">來源</th>
+                  <th class="p-3">備註</th>
+                  <th class="p-3 text-center">操作</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[#eee4ce] text-stone-800 font-normal">
+                <tr v-for="(item, idx) in items" :key="item.id" class="hover:bg-[#fbf7ee] transition-colors">
+                  <td class="p-3 font-mono font-bold text-[#386641]">{{ idx + 1 }}</td>
+                  <td class="p-3 font-bold text-[#3a2211]">{{ item.name }}</td>
+                  <td class="p-3 text-stone-600">{{ item.spec || '-' }}</td>
+                  <td class="p-3 text-right font-pixel text-sm">${{ item.price.toLocaleString() }}</td>
+                  <td class="p-3 text-stone-600">{{ item.source || '-' }}</td>
+                  <td class="p-3 text-stone-500">{{ item.note || '-' }}</td>
+                  <td class="p-3 text-center">
+                    <button @click="deleteItem(item)" class="text-rose-600 hover:text-rose-800">
+                      <i class="ph-bold ph-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr class="bg-[#f5eedc] border-t-2 border-[#dfcca9] font-bold">
+                  <td colspan="3" class="p-3 text-right text-[#5c3a21]">工具設備總花費</td>
+                  <td class="p-3 text-right font-pixel text-base text-[#b45309]">${{ totalCost.toLocaleString() }}</td>
+                  <td colspan="3"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+      </main>
+    </template>
+  </div>
+
+  <script>
+    const { createApp, ref, reactive, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const PRODUCTION_API_BASE = '';
+        const DEFAULT_CREDENTIALS = { username: 'owner', password: 'changeme123' };
+
+        const auth = reactive({
+          apiBase:
+            localStorage.getItem('pt_api_base') ||
+            PRODUCTION_API_BASE ||
+            `${window.location.protocol}//${window.location.hostname}:4000`,
+          token: localStorage.getItem('pt_token') || '',
+          loading: false,
+          error: '',
+        });
+        const apiOrigin = computed(() => auth.apiBase.replace(/\/$/, ''));
+
+        async function apiFetch(path, options = {}) {
+          const url = apiOrigin.value + path;
+          const headers = { ...(options.headers || {}) };
+          if (auth.token) headers['Authorization'] = 'Bearer ' + auth.token;
+          if (options.body) headers['Content-Type'] = 'application/json';
+          const res = await fetch(url, { ...options, headers });
+          if (res.status === 204) return null;
+          let data = null;
+          try { data = await res.json(); } catch (e) {}
+          if (!res.ok) {
+            const code = data && data.error ? data.error.code : 'UNKNOWN_ERROR';
+            const message = data && data.error ? data.error.message : `HTTP ${res.status}`;
+            const err = new Error(message);
+            err.code = code; err.status = res.status;
+            throw err;
+          }
+          return data;
+        }
+
+        async function autoLogin() {
+          if (auth.token) return bootstrap();
+          auth.loading = true; auth.error = '';
+          try {
+            const data = await apiFetch('/api/auth/login', { method: 'POST', body: JSON.stringify(DEFAULT_CREDENTIALS) });
+            auth.token = data.token;
+            localStorage.setItem('pt_token', data.token);
+            localStorage.setItem('pt_api_base', auth.apiBase);
+            await bootstrap();
+          } catch (err) {
+            auth.error = err.message || '自動登入失敗';
+          } finally {
+            auth.loading = false;
+          }
+        }
+
+        const toast = reactive({ message: '', type: 'info' });
+        function showToast(message, type = 'info') {
+          toast.message = message; toast.type = type;
+          setTimeout(() => { if (toast.message === message) toast.message = ''; }, 4000);
+        }
+        function showError(err) { showToast(`${err.code ? '[' + err.code + '] ' : ''}${err.message}`, 'error'); }
+
+        const loading = reactive({ list: false, submit: false });
+        const items = ref([]);
+        const totalCost = ref(0);
+        const form = reactive({ name: '', spec: '', price: '', source: '', note: '' });
+
+        async function loadItems() {
+          loading.list = true;
+          try {
+            const data = await apiFetch('/api/equipment');
+            items.value = data.items;
+            totalCost.value = data.totalCost;
+          } catch (err) {
+            showError(err);
+          } finally {
+            loading.list = false;
+          }
+        }
+
+        async function submitItem() {
+          if (!form.name) { showToast('請輸入項目名稱', 'error'); return; }
+          if (form.price === '' || form.price === null || form.price < 0) { showToast('請輸入正確的價格', 'error'); return; }
+
+          loading.submit = true;
+          try {
+            await apiFetch('/api/equipment', {
+              method: 'POST',
+              body: JSON.stringify({
+                name: form.name, spec: form.spec || undefined,
+                price: form.price, source: form.source || undefined, note: form.note || undefined,
+              }),
+            });
+            showToast('已新增工具設備');
+            Object.assign(form, { name: '', spec: '', price: '', source: '', note: '' });
+            await loadItems();
+          } catch (err) {
+            showError(err);
+          } finally {
+            loading.submit = false;
+          }
+        }
+
+        async function deleteItem(item) {
+          if (!window.confirm(`確定要刪除「${item.name}」嗎?此動作無法復原。`)) return;
+          try {
+            await apiFetch(`/api/equipment/${item.id}`, { method: 'DELETE' });
+            showToast('已刪除');
+            await loadItems();
+          } catch (err) { showError(err); }
+        }
+
+        async function bootstrap() {
+          try {
+            await loadItems();
+          } catch (err) {
+            if (err.status === 401) {
+              auth.token = ''; localStorage.removeItem('pt_token');
+              return autoLogin();
+            }
+            showError(err);
+          }
+        }
+
+        onMounted(() => { autoLogin(); });
+
+        return {
+          auth, toast, loading, items, totalCost, form,
+          submitItem, deleteItem, autoLogin,
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
